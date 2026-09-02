@@ -28,3 +28,4 @@ hoparlör + mikrofon ve saf sinyal işleme matematiği.
 `poc.html` dosyasını bir telefon tarayıcısında aç (GitHub Pages üzerinden
 yayınlanınca), mikrofon iznini ver, telefonu masaya koy, 1 saniye sessiz kal
 (kalibrasyon), sonra elini telefonun üzerinde yaklaştır/uzaklaştır.
+
