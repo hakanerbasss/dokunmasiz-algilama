@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Temassız İmleç</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{
+  width:100%;height:100%;background:#0b0f14;color:#e8eef2;
+  font-family:-apple-system,'Segoe UI',Roboto,sans-serif;overflow-y:auto;
+}
+.wrap{max-width:520px;margin:0 auto;padding:18px 16px 60px;}
+h1{font-size:20px;margin-bottom:4px;}
+.sub{color:#8fa3b0;font-size:13px;margin-bottom:16px;line-height:1.4;}
+a.back{color:#4fd1a5;font-size:13px;display:inline-block;margin-bottom:14px;text-decoration:none;}
+
+#startBtn, #resetBtn{
+  padding:16px;font-size:16px;font-weight:700;color:#0b0f14;
+  background:#4fd1a5;border:none;border-radius:14px;cursor:pointer;
+}
+#startBtn{width:100%;margin-bottom:16px;}
+#startBtn:disabled{background:#33403a;color:#7f8f88;}
+#resetBtn{width:100%;background:#2a3a44;color:#e8eef2;margin-top:12px;}
+#status{font-size:13px;color:#ff8a8a;margin-bottom:10px;min-height:18px;}
+
+.card{background:#131a22;border:1px solid #22303a;border-radius:14px;padding:16px;margin-bottom:14px;}
+
+/* --- dikey kaydırma rayı --- */
+#trackWrap{display:flex;justify-content:center;padding:10px 0;}
+#track{
+  position:relative;width:64px;height:340px;border-radius:32px;
+  background:linear-gradient(180deg,#1f5c4a22,#0e151c 40%,#0e151c 60%,#1f3a5c22);
+  border:2px solid #22303a;
+}
+#zoneNear, #zoneFar{
+  position:absolute;left:0;right:0;height:60px;display:flex;align-items:center;
+  justify-content:center;font-size:11px;color:#6f8490;
+}
+#zoneNear{top:0;} #zoneFar{bottom:0;}
+#pointer{
+  position:absolute;left:50%;top:50%;width:48px;height:48px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#7dffca,#1f5c4a);
+  transform:translate(-50%,-50%);box-shadow:0 0 22px rgba(79,209,165,.55);
+  transition:box-shadow .15s;
+}
+#pointer.active{box-shadow:0 0 34px rgba(255,217,61,.7);}
+
+.rows{display:flex;gap:10px;margin-top:14px;}
+.stat{flex:1;background:#0e151c;border-radius:10px;padding:10px;text-align:center;}
+.stat .v{font-size:16px;font-weight:700;color:#4fd1a5;}
+.stat .l{font-size:11px;color:#6f8490;margin-top:2px;}
+.hint{font-size:12.5px;color:#6f8490;line-height:1.5;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="tiklama.html">← Temassız Tıklama demosuna dön</a>
+  <h1>🎯 Temassız İmleç</h1>
+  <p class="sub">
+    Bu bir <b>mutlak mesafe göstergesi değil</b> — fare mantığı: sinyal
+    sadece "ne kadar hızlı yaklaşıyor/uzaklaşıyor" bilgisi veriyor, biz bunu
+    zamanla biriktirip (integrate) bir konuma çeviriyoruz. Elini yaklaştır →
+    top yukarı kayar, uzaklaştır → aşağı kayar, hareketi durdurunca top
+    olduğu yerde kalır (tıpkı fareyi kaldırıp bırakınca imlecin durması gibi).
+  </p>
+
+  <button id="startBtn">▶️ Testi Başlat (mikrofon izni ister)</button>
+  <div id="status"></div>
+
+  <div class="card">
+    <div id="trackWrap">
+      <div id="track">
+        <div id="zoneNear">yaklaş →</div>
+        <div id="pointer"></div>
+        <div id="zoneFar">← uzaklaş</div>
+      </div>
+    </div>
+    <div class="rows">
+      <div class="stat"><div class="v" id="posVal">50%</div><div class="l">konum</div></div>
+      <div class="stat"><div class="v" id="biasVal">0.00</div><div class="l">yön (bias)</div></div>
+      <div class="stat"><div class="v" id="confVal">0%</div><div class="l">güven</div></div>
+    </div>
+    <button id="resetBtn">↺ Ortala</button>
+  </div>
+
+  <div class="card">
+    <div class="hint">
+      Top kenara yapışıp kalırsa "Ortala"ya bas. Çok hassas/oynak geliyorsa
+      bu sayfanın altındaki <code>SPEED</code> ve <code>DEADZONE</code>
+      sabitlerini küçültüp/büyütüp ayarlayabiliriz — söyle, canlı deneriz.
+    </div>
+  </div>
+</div>
+
+<script src="sensing.js"></script>
+<script>
+(() => {
+'use strict';
+
+const startBtn = document.getElementById('startBtn');
+const statusEl = document.getElementById('status');
+const resetBtn = document.getElementById('resetBtn');
+const pointerEl = document.getElementById('pointer');
+const trackEl = document.getElementById('track');
+const posVal = document.getElementById('posVal');
+const biasVal = document.getElementById('biasVal');
+const confVal = document.getElementById('confVal');
+
+// Sinyal mutlak konum değil HIZ veriyor — fare gibi göreli hareket olarak
+// biriktiriyoruz (integrate). DEADZONE altındaki güven, "hareket yok"
+// sayılır (yoksa duran elde bile gürültü konumu yavaşça kaydırırdı).
+const SPEED = 0.9;       // saniyede, tam güçte yaklaşmanın kat ettiği mesafe (0..1 üzerinden)
+const DEADZONE_CONF = 0.18;
+let position = 0.5;      // 0 = üst (yaklaş bölgesi), 1 = alt (uzaklaş bölgesi)
+let lastT = performance.now();
+
+function render(){
+  const trackH = trackEl.clientHeight - 48; // pointer çapı payı
+  pointerEl.style.top = (24 + position*trackH) + 'px';
+  posVal.textContent = Math.round((1-position)*100) + '%';
+}
+render();
+
+resetBtn.addEventListener('click', () => { position = 0.5; render(); });
+
+function onSensorUpdate({ bias, confidence }){
+  biasVal.textContent = bias.toFixed(2);
+  confVal.textContent = Math.round(confidence*100) + '%';
+
+  const now = performance.now();
+  const dt = Math.min((now-lastT)/1000, 0.1);
+  lastT = now;
+
+  pointerEl.classList.toggle('active', confidence > DEADZONE_CONF);
+
+  if (confidence > DEADZONE_CONF){
+    // bias>0 = yaklaşıyor -> yukarı (position azalır); bias<0 = uzaklaşıyor -> aşağı
+    position -= bias * confidence * SPEED * dt;
+    position = Math.max(0, Math.min(1, position));
+  }
+  render();
+}
+
+const sensor = new TouchlessSensor({
+  carrierFreq: 19000,
+  onUpdate: onSensorUpdate,
+  onStatus: () => {}
+});
+
+startBtn.addEventListener('click', async () => {
+  startBtn.disabled = true;
+  statusEl.textContent = '';
+  lastT = performance.now();
+  try{
+    await sensor.start();
+  }catch(e){
+    statusEl.textContent = 'Mikrofon açılamadı: ' + e.message;
+    startBtn.disabled = false;
+  }
+});
+})();
+</script>
+</body>
+</html>
