@@ -112,12 +112,15 @@ function haptic(ms){ if (navigator.vibrate) { try{ navigator.vibrate(ms); }catch
 // olmadan her "elini yaklaştır" hareketi de tıklama gibi görünürdü.
 const THRESH_ON = 0.28;   // darbenin başladığını kabul etmek için gereken güç (bias>0 * confidence)
 const THRESH_OFF = 0.12;  // darbenin bittiğini kabul etmek için gereken güç
-const MIN_PEAK = 0.40;    // gürültüyü gerçek darbeden ayırmak için gereken minimum tepe değeri
-const MAX_PULSE_MS = 900; // bundan uzun süren "yaklaşma" darbe değil, sabit yaklaşma sayılır
+const MIN_PEAK = 0.45;    // gürültüyü gerçek darbeden ayırmak için gereken minimum tepe değeri
+const MAX_PULSE_MS = 450; // bundan uzun süren "yaklaşma" darbe değil, sabit yaklaşma/yavaş geçiş sayılır
+const MAX_RISE_MS = 260;  // tepeye bundan yavaş ulaşan darbe reddedilir — tek mikrofonla "bana doğru
+                           // itiş" ile "önümden yavaş geçiş" aynı yükselip-düşen şekli üretiyor; tek
+                           // gerçek ayrım hızları: itiş ani yükselir, yavaş geçiş yavaş yükselir.
 const REFRACTORY_MS = 350;// bir tıklamadan sonra yeni darbe aranmaz (çift sayımı önler)
 
 let pulseState = 'idle'; // idle | armed
-let armedAt = 0, peakStrength = 0, refractoryUntil = 0;
+let armedAt = 0, peakStrength = 0, peakAt = 0, refractoryUntil = 0;
 let count = 0;
 
 function onSensorUpdate({ bias, confidence, spectrumData, binForFreq, carrierFreq }) {
@@ -130,18 +133,19 @@ function onSensorUpdate({ bias, confidence, spectrumData, binForFreq, carrierFre
     stateVal.textContent = 'bekleme';
   } else if (pulseState === 'idle') {
     if (approachStrength > THRESH_ON) {
-      pulseState = 'armed'; armedAt = now; peakStrength = approachStrength;
+      pulseState = 'armed'; armedAt = now; peakStrength = approachStrength; peakAt = now;
       btnEl.classList.add('armed');
       stateVal.textContent = 'yükseliyor';
     } else {
       stateVal.textContent = 'bekliyor';
     }
   } else if (pulseState === 'armed') {
-    peakStrength = Math.max(peakStrength, approachStrength);
+    if (approachStrength > peakStrength) { peakStrength = approachStrength; peakAt = now; }
     const elapsed = now - armedAt;
+    const riseMs = peakAt - armedAt;
     if (approachStrength < THRESH_OFF) {
       btnEl.classList.remove('armed');
-      if (peakStrength >= MIN_PEAK && elapsed < MAX_PULSE_MS) {
+      if (peakStrength >= MIN_PEAK && elapsed < MAX_PULSE_MS && riseMs < MAX_RISE_MS) {
         registerClick();
       }
       pulseState = 'idle';
