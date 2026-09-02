@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Temassız Tıklama</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{
+  width:100%;height:100%;background:#0b0f14;color:#e8eef2;
+  font-family:-apple-system,'Segoe UI',Roboto,sans-serif;overflow-y:auto;
+}
+.wrap{max-width:520px;margin:0 auto;padding:18px 16px 60px;}
+h1{font-size:20px;margin-bottom:4px;}
+.sub{color:#8fa3b0;font-size:13px;margin-bottom:16px;line-height:1.4;}
+a.back{color:#4fd1a5;font-size:13px;display:inline-block;margin-bottom:14px;text-decoration:none;}
+
+#startBtn{
+  width:100%;padding:16px;font-size:17px;font-weight:700;color:#0b0f14;
+  background:#4fd1a5;border:none;border-radius:14px;cursor:pointer;margin-bottom:16px;
+}
+#startBtn:disabled{background:#33403a;color:#7f8f88;}
+#status{font-size:13px;color:#ff8a8a;margin-bottom:10px;min-height:18px;}
+
+/* --- temassız buton --- */
+#btnWrap{display:flex;flex-direction:column;align-items:center;margin:18px 0 22px;}
+#touchlessBtn{
+  width:200px;height:200px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#1f2e38,#0e151c 70%);
+  border:3px solid #22303a;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;transition:transform .08s, box-shadow .12s, border-color .12s;
+}
+#touchlessBtn.armed{border-color:#ffd93d;box-shadow:0 0 26px rgba(255,217,61,.35);}
+#touchlessBtn.clicked{
+  transform:scale(1.08);border-color:#4fd1a5;
+  box-shadow:0 0 40px rgba(79,209,165,.55);
+}
+#count{font-size:52px;font-weight:800;color:#4fd1a5;line-height:1;}
+#countLabel{font-size:13px;color:#8fa3b0;margin-top:6px;}
+
+.card{background:#131a22;border:1px solid #22303a;border-radius:14px;padding:16px;margin-bottom:14px;}
+.rows{display:flex;gap:10px;}
+.stat{flex:1;background:#0e151c;border-radius:10px;padding:10px;text-align:center;}
+.stat .v{font-size:16px;font-weight:700;color:#4fd1a5;}
+.stat .l{font-size:11px;color:#6f8490;margin-top:2px;}
+canvas#spec{width:100%;height:70px;display:block;background:#0e151c;border-radius:10px;margin-top:10px;}
+.hint{font-size:12.5px;color:#6f8490;line-height:1.5;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">← Yön/spektrum testine dön</a>
+  <h1>👊 Temassız Tıklama</h1>
+  <p class="sub">
+    Elini telefona doğru <b>hızlıca it, sonra geri çek</b> — tek bir "darbe"
+    hareketi. Bu, sürekli yaklaşma sinyalinden ayrık bir "tıklama" olayı
+    çıkarmaya çalışan basit bir darbe dedektörü. Amaç: mouse tıklaması ya
+    da dokunma yerine geçebilecek, güvenilir tek bir eylemi yakalamak.
+  </p>
+
+  <button id="startBtn">▶️ Testi Başlat (mikrofon izni ister)</button>
+  <div id="status"></div>
+
+  <div id="btnWrap">
+    <div id="touchlessBtn">
+      <div id="count">0</div>
+      <div id="countLabel">tıklama</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="rows">
+      <div class="stat"><div class="v" id="biasVal">0.00</div><div class="l">yön (bias)</div></div>
+      <div class="stat"><div class="v" id="confVal">0%</div><div class="l">güven</div></div>
+      <div class="stat"><div class="v" id="stateVal">bekliyor</div><div class="l">darbe durumu</div></div>
+    </div>
+    <canvas id="spec" width="600" height="140"></canvas>
+  </div>
+
+  <div class="card">
+    <div class="hint">
+      Çok hassas/gereksiz tetikleniyorsa <b>eşik</b> ayarlarını
+      <code>sensing.js</code>'teki değil, bu sayfanın en altındaki
+      <code>THRESH_ON / THRESH_OFF / MIN_PEAK</code> sabitlerini değiştirerek
+      kalibre edebilirsin — kod içinde açıklamalı.
+    </div>
+  </div>
+</div>
+
+<script src="sensing.js"></script>
+<script>
+(() => {
+'use strict';
+
+const startBtn = document.getElementById('startBtn');
+const statusEl = document.getElementById('status');
+const btnEl = document.getElementById('touchlessBtn');
+const countEl = document.getElementById('count');
+const biasVal = document.getElementById('biasVal');
+const confVal = document.getElementById('confVal');
+const stateVal = document.getElementById('stateVal');
+const specCv = document.getElementById('spec');
+const specCtx = specCv.getContext('2d');
+
+function haptic(ms){ if (navigator.vibrate) { try{ navigator.vibrate(ms); }catch(e){} } }
+
+// --- darbe (push-to-click) dedektörü: bir state machine olarak ---
+// IDLE -> (bias*confidence THRESH_ON'u geçerse) ARMED -> (THRESH_OFF'un altına
+// düşerse VE bu sürede yeterince güçlü bir tepe (MIN_PEAK) görülmüşse) CLICK.
+// Sadece yükselip-düşen gerçek bir "darbe" şekli tıklama sayılır; sabit/uzun
+// süren yaklaşma (örn. eli sadece öne koymak) tıklama saymaz — bu ayrım
+// olmadan her "elini yaklaştır" hareketi de tıklama gibi görünürdü.
+const THRESH_ON = 0.28;   // darbenin başladığını kabul etmek için gereken güç (bias>0 * confidence)
+const THRESH_OFF = 0.12;  // darbenin bittiğini kabul etmek için gereken güç
+const MIN_PEAK = 0.40;    // gürültüyü gerçek darbeden ayırmak için gereken minimum tepe değeri
+const MAX_PULSE_MS = 900; // bundan uzun süren "yaklaşma" darbe değil, sabit yaklaşma sayılır
+const REFRACTORY_MS = 350;// bir tıklamadan sonra yeni darbe aranmaz (çift sayımı önler)
+
+let pulseState = 'idle'; // idle | armed
+let armedAt = 0, peakStrength = 0, refractoryUntil = 0;
+let count = 0;
+
+function onSensorUpdate({ bias, confidence, spectrumData, binForFreq, carrierFreq }) {
+  const approachStrength = confidence * Math.max(0, bias);
+  biasVal.textContent = bias.toFixed(2);
+  confVal.textContent = Math.round(confidence*100) + '%';
+
+  const now = performance.now();
+  if (now < refractoryUntil) {
+    stateVal.textContent = 'bekleme';
+  } else if (pulseState === 'idle') {
+    if (approachStrength > THRESH_ON) {
+      pulseState = 'armed'; armedAt = now; peakStrength = approachStrength;
+      btnEl.classList.add('armed');
+      stateVal.textContent = 'yükseliyor';
+    } else {
+      stateVal.textContent = 'bekliyor';
+    }
+  } else if (pulseState === 'armed') {
+    peakStrength = Math.max(peakStrength, approachStrength);
+    const elapsed = now - armedAt;
+    if (approachStrength < THRESH_OFF) {
+      btnEl.classList.remove('armed');
+      if (peakStrength >= MIN_PEAK && elapsed < MAX_PULSE_MS) {
+        registerClick();
+      }
+      pulseState = 'idle';
+    } else if (elapsed > MAX_PULSE_MS) {
+      // uzun süredir yaklaşık aynı yerde — darbe değil, sabit yaklaşma. iptal.
+      btnEl.classList.remove('armed');
+      pulseState = 'idle';
+      stateVal.textContent = 'sabit (iptal)';
+    } else {
+      stateVal.textContent = 'darbe: ' + Math.round(peakStrength*100) + '%';
+    }
+  }
+
+  drawSpectrum(specCtx, specCv, spectrumData, binForFreq, carrierFreq);
+}
+
+function registerClick(){
+  count++;
+  countEl.textContent = count;
+  btnEl.classList.add('clicked');
+  setTimeout(()=>btnEl.classList.remove('clicked'), 180);
+  haptic(45);
+  refractoryUntil = performance.now() + REFRACTORY_MS;
+}
+
+const sensor = new TouchlessSensor({
+  carrierFreq: 19000,
+  onUpdate: onSensorUpdate,
+  onStatus: (s) => { stateVal.textContent = s === 'calibrating' ? 'kalibre ediliyor' : 'hazır'; }
+});
+
+startBtn.addEventListener('click', async () => {
+  startBtn.disabled = true;
+  statusEl.textContent = '';
+  try{
+    await sensor.start();
+  }catch(e){
+    statusEl.textContent = 'Mikrofon açılamadı: ' + e.message;
+    startBtn.disabled = false;
+  }
+});
+})();
+</script>
+</body>
+</html>

@@ -13,7 +13,8 @@ html,body{
 }
 .wrap{max-width:520px;margin:0 auto;padding:18px 16px 60px;}
 h1{font-size:20px;margin-bottom:4px;}
-.sub{color:#8fa3b0;font-size:13px;margin-bottom:18px;line-height:1.4;}
+.sub{color:#8fa3b0;font-size:13px;margin-bottom:14px;line-height:1.4;}
+a.next{color:#4fd1a5;font-size:13px;display:inline-block;margin-bottom:16px;text-decoration:none;}
 
 #startBtn{
   width:100%;padding:16px;font-size:17px;font-weight:700;color:#0b0f14;
@@ -26,7 +27,6 @@ h1{font-size:20px;margin-bottom:4px;}
   padding:16px;margin-bottom:14px;
 }
 
-/* --- yön göstergesi --- */
 #dirBox{
   display:flex;align-items:center;justify-content:center;flex-direction:column;
   height:130px;border-radius:14px;transition:background .12s;
@@ -62,6 +62,7 @@ input[type=range]{width:100%;}
     çok küçük bir miktar kayar — bunu mikrofonla yakalayıp analiz ediyoruz.
     Kamera yok, yapay zeka modeli yok — sadece ses ve matematik.
   </p>
+  <a class="next" href="tiklama.html">Fizik doğrulandı mı? → Temassız Tıklama demosuna geç</a>
 
   <button id="startBtn">▶️ Testi Başlat (mikrofon izni ister)</button>
   <div id="status"></div>
@@ -72,7 +73,7 @@ input[type=range]{width:100%;}
       <div id="dirLabel">Bekleniyor…</div>
     </div>
     <div class="rows">
-      <div class="stat"><div class="v" id="shiftVal">0.0</div><div class="l">Hz kayma</div></div>
+      <div class="stat"><div class="v" id="shiftVal">0.0</div><div class="l">yön (bias)</div></div>
       <div class="stat"><div class="v" id="confVal">0%</div><div class="l">güven</div></div>
       <div class="stat"><div class="v" id="freqValStat">—</div><div class="l">taşıyıcı Hz</div></div>
     </div>
@@ -110,6 +111,7 @@ input[type=range]{width:100%;}
   </div>
 </div>
 
+<script src="sensing.js"></script>
 <script>
 (() => {
 'use strict';
@@ -127,156 +129,18 @@ const specCtx = specCv.getContext('2d');
 const freqSlider = document.getElementById('freqSlider');
 const freqVal = document.getElementById('freqVal');
 
-let carrierFreq = 19000;
-freqSlider.addEventListener('input', () => {
-  carrierFreq = +freqSlider.value;
-  freqVal.textContent = carrierFreq;
-  if (oscillator) oscillator.frequency.setValueAtTime(carrierFreq, actx.currentTime);
+const sensor = new TouchlessSensor({
+  carrierFreq: 19000,
+  onUpdate: onSensorUpdate,
+  onStatus: (s) => { dirLabel.textContent = s === 'calibrating' ? 'Kalibre ediliyor… sessiz kal' : 'Hazır — elini yaklaştır/uzaklaştır'; }
 });
 
-let actx, oscillator, analyser, micSource;
-let noiseFloor = null; // kalibrasyon sırasında ölçülen taban gürültü (bin başına)
-let running = false;
-
-async function start(){
-  startBtn.disabled = true;
-  statusEl.textContent = '';
-  try{
-    actx = new (window.AudioContext || window.webkitAudioContext)({sampleRate: 44100});
-
-    // --- taşıyıcı ton: sabit, duyulmayan (ya da zar zor duyulan) sinüs ---
-    oscillator = actx.createOscillator();
-    oscillator.type = 'sine';
-    oscillator.frequency.value = carrierFreq;
-    const gain = actx.createGain();
-    gain.gain.value = 0.35; // fazla yükseltme distorsiyon + mikrofon clipping yaratır
-    oscillator.connect(gain);
-    gain.connect(actx.destination);
-    oscillator.start();
-
-    // --- mikrofon girişi ---
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false }
-    });
-    micSource = actx.createMediaStreamSource(stream);
-    analyser = actx.createAnalyser();
-    analyser.fftSize = 16384; // yüksek frekans çözünürlüğü: 44100/16384 ≈ 2.7 Hz/bin
-    analyser.smoothingTimeConstant = 0.2;
-    micSource.connect(analyser);
-
-    freqValStat.textContent = carrierFreq;
-    dirLabel.textContent = 'Kalibre ediliyor… sessiz kal';
-    running = true;
-    calibrate();
-  }catch(e){
-    statusEl.textContent = 'Mikrofon açılamadı: ' + e.message;
-    startBtn.disabled = false;
-  }
-}
-
-function binForFreq(f){
-  const nyquist = actx.sampleRate/2;
-  return Math.round(f/nyquist * analyser.frequencyBinCount);
-}
-
-// Taşıyıcının hemen etrafındaki üç bandın enerjisini ölçüyoruz:
-//  - merkez: taşıyıcının kendisi (±10 Hz) — her zaman güçlü, referans
-//  - üst band: taşıyıcı+30..+300 Hz — el YAKLAŞIRKEN Doppler burayı besler
-//  - alt band: taşıyıcı-300..-30 Hz — el UZAKLAŞIRKEN burayı besler
-// Duran bir el/ortamda üst ve alt bandlar sadece gürültü tabanı kadar
-// enerji taşır; hareket, enerjiyi yön'e göre bu bandlardan birine kaydırır.
-function bandEnergy(data, loHz, hiHz){
-  const lo = binForFreq(loHz), hi = binForFreq(hiHz);
-  let sum = 0, n = 0;
-  for (let i=lo;i<=hi;i++){ sum += Math.pow(10, data[i]/10); n++; } // dB -> lineer güç
-  return n ? sum/n : 0;
-}
-
-let calibSamples = [];
-function calibrate(){
-  const data = new Float32Array(analyser.frequencyBinCount);
-  let t0 = performance.now();
-  function step(){
-    if (!running) return;
-    analyser.getFloatFrequencyData(data);
-    const above = bandEnergy(data, carrierFreq+30, carrierFreq+300);
-    const below = bandEnergy(data, carrierFreq-300, carrierFreq-30);
-    calibSamples.push(above+below);
-    drawSpectrum(data);
-    if (performance.now()-t0 < 1000){
-      requestAnimationFrame(step);
-    } else {
-      const avg = calibSamples.reduce((a,b)=>a+b,0)/calibSamples.length;
-      noiseFloor = avg * 1.8; // %80 pay: gerçek hareketin taban gürültüden belirgin
-                               // şekilde ayrışması için basit bir eşik.
-      dirLabel.textContent = 'Hazır — elini yaklaştır/uzaklaştır';
-      loop();
-    }
-  }
-  step();
-}
-
-function drawSpectrum(data){
-  const w = specCv.width, h = specCv.height;
-  specCtx.fillStyle = '#0e151c';
-  specCtx.fillRect(0,0,w,h);
-  const lo = binForFreq(carrierFreq-400), hi = binForFreq(carrierFreq+400);
-  const n = hi-lo;
-  specCtx.strokeStyle = '#4fd1a5';
-  specCtx.lineWidth = 2;
-  specCtx.beginPath();
-  for (let i=0;i<n;i++){
-    const db = data[lo+i];
-    const norm = Math.max(0, Math.min(1, (db+100)/70));
-    const x = i/n*w, y = h - norm*h;
-    if (i===0) specCtx.moveTo(x,y); else specCtx.lineTo(x,y);
-  }
-  specCtx.stroke();
-  // merkez çizgisi = taşıyıcı
-  specCtx.strokeStyle = 'rgba(255,255,255,.25)';
-  specCtx.lineWidth = 1;
-  specCtx.beginPath();
-  specCtx.moveTo(w/2,0); specCtx.lineTo(w/2,h);
-  specCtx.stroke();
-}
-
-let dirSmooth = 0; // -1..+1, negatif=uzaklaşma, pozitif=yaklaşma
-function loop(){
-  if (!running) return;
-  const data = new Float32Array(analyser.frequencyBinCount);
-  analyser.getFloatFrequencyData(data);
-
-  const above = bandEnergy(data, carrierFreq+30, carrierFreq+300); // yaklaşma
-  const below = bandEnergy(data, carrierFreq-300, carrierFreq-30); // uzaklaşma
-  const total = above + below;
-
-  drawSpectrum(data);
-
-  if (total > noiseFloor){
-    const bias = (above-below)/total; // -1..+1
-    dirSmooth += (bias - dirSmooth) * 0.3;
-    const confidence = Math.min(1, total/(noiseFloor*4));
-    shiftVal.textContent = (bias*300).toFixed(0);
-    confVal.textContent = Math.round(confidence*100) + '%';
-
-    if (confidence > 0.25 && Math.abs(dirSmooth) > 0.15){
-      if (dirSmooth > 0){
-        setDir('approach', '⬆️', 'Yaklaşıyor');
-      } else {
-        setDir('recede', '⬇️', 'Uzaklaşıyor');
-      }
-    } else {
-      setDir('still', '✋', 'Hareketsiz');
-    }
-  } else {
-    dirSmooth *= 0.7;
-    shiftVal.textContent = '0';
-    confVal.textContent = '0%';
-    setDir('still', '✋', 'Hareketsiz');
-  }
-
-  requestAnimationFrame(loop);
-}
+freqSlider.addEventListener('input', () => {
+  const f = +freqSlider.value;
+  freqVal.textContent = f;
+  freqValStat.textContent = f;
+  sensor.setCarrierFreq(f);
+});
 
 let lastDirClass = '';
 function setDir(cls, arrow, label){
@@ -288,7 +152,30 @@ function setDir(cls, arrow, label){
   }
 }
 
-startBtn.addEventListener('click', start);
+function onSensorUpdate({ bias, confidence, spectrumData, binForFreq, carrierFreq }){
+  shiftVal.textContent = bias.toFixed(2);
+  confVal.textContent = Math.round(confidence*100) + '%';
+  drawSpectrum(specCtx, specCv, spectrumData, binForFreq, carrierFreq);
+
+  if (confidence > 0.25 && Math.abs(bias) > 0.15){
+    if (bias > 0) setDir('approach', '⬆️', 'Yaklaşıyor');
+    else setDir('recede', '⬇️', 'Uzaklaşıyor');
+  } else {
+    setDir('still', '✋', 'Hareketsiz');
+  }
+}
+
+startBtn.addEventListener('click', async () => {
+  startBtn.disabled = true;
+  statusEl.textContent = '';
+  freqValStat.textContent = sensor.carrierFreq;
+  try{
+    await sensor.start();
+  }catch(e){
+    statusEl.textContent = 'Mikrofon açılamadı: ' + e.message;
+    startBtn.disabled = false;
+  }
+});
 })();
 </script>
 </body>
