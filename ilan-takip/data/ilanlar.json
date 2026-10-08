@@ -1,6 +1,6 @@
 {
  "surum": 1,
- "guncelleme": "2026-10-08T12:20:04Z",
+ "guncelleme": "2026-10-08T18:53:43Z",
  "baslangic": "2026-10-08",
  "bitis": "2028-10-08",
  "depo": "hakanerbasss/dokunmasiz-algilama",
@@ -134,6 +134,100 @@
   }
  ],
  "ilanlar": [
+  {
+   "id": "CBMieEFVX3lxTE1JaS11ZF9zUW4wREU2T3JFUkxwVTRQSjFlTzFIWFhyR2hyc1Izd19KX1otYU9YZ05qaUo4SUR1TDBTazVpVlh6SWgxSTVqM3VMNHpMTS1xV2hPcHYwaS15RXF1UWtjQlRKRURJY0RKSlR5YU9nMUdZOQ",
+   "baslik": "BDDK Sözleşmeli Personel Alımına Çıkıyor",
+   "url": "https://news.google.com/rss/articles/CBMieEFVX3lxTE1JaS11ZF9zUW4wREU2T3JFUkxwVTRQSjFlTzFIWFhyR2hyc1Izd19KX1otYU9YZ05qaUo4SUR1TDBTazVpVlh6SWgxSTVqM3VMNHpMTS1xV2hPcHYwaS15RXF1UWtjQlRKRURJY0RKSlR5YU9nMUdZOQ?oc=5",
+   "kaynak": "Google Haberler: sözleşmeli mühendis alımı",
+   "tarih": "2026-10-08T17:00:00Z",
+   "ilk_gorulme": "2026-10-08T18:53:43Z",
+   "seviye": "toplu",
+   "nedenler": [
+    "Toplu personel alımı: kadro listesinde mühendis var mı bak"
+   ],
+   "gercekler": {
+    "kpss_durum": "belirsiz",
+    "kpss_yillari": [],
+    "puan_turleri": {},
+    "genel_puanlar": [],
+    "yas_siniri": null,
+    "iller": [],
+    "ehliyet": false,
+    "bolumler": []
+   },
+   "elendi": []
+  },
+  {
+   "id": "CBMimgFBVV95cUxNYnYtSjdWUGpYZUQtZ3FIUnVvVFpTbGJ3d1NYNTkxNTMwNUhYLUZHSVRKeU5ZRVV6UE9qNXJJdWZCV085aHlhT2UxbEdZc2JEWjJkUEF3OW0zU050WUIySjJNV28zNVJnczlwVTJUMDZJbkpqRGhLRV9pUWJlVUlTQ0RXMkFFbmJjdTR0ZVdwM1l1X1hwX2JYZ1dB0gGqAUFVX3lxTE56RVZ4T0ZkUlZDLUcyMkRFaHFydE9LVzRDUjJkR3YtSE1NUEpnZzdsOGdiS3hfR1pGRTc3WE42VFItUFFKS19idGFubjY3aG5PQnh3YW5Zdm9LaXMxQmhGTmJfejF1bTg5QmJpQjB5OXg5YzU2RFJQT3pJZ3Nsdm5WQmJWQTdJWmFpa2lCNXAzenN5TkNiLXkzWkRWR0wtVHluY2MtMDZlVFd3",
+   "baslik": "Devlet Arşivleri Başkanlığı 53 Sözleşmeli Personel Alacak",
+   "url": "https://news.google.com/rss/articles/CBMimgFBVV95cUxNYnYtSjdWUGpYZUQtZ3FIUnVvVFpTbGJ3d1NYNTkxNTMwNUhYLUZHSVRKeU5ZRVV6UE9qNXJJdWZCV085aHlhT2UxbEdZc2JEWjJkUEF3OW0zU050WUIySjJNV28zNVJnczlwVTJUMDZJbkpqRGhLRV9pUWJlVUlTQ0RXMkFFbmJjdTR0ZVdwM1l1X1hwX2JYZ1dB0gGqAUFVX3lxTE56RVZ4T0ZkUlZDLUcyMkRFaHFydE9LVzRDUjJkR3YtSE1NUEpnZzdsOGdiS3hfR1pGRTc3WE42VFItUFFKS19idGFubjY3aG5PQnh3YW5Zdm9LaXMxQmhGTmJfejF1bTg5QmJpQjB5OXg5YzU2RFJQT3pJZ3Nsdm5WQmJWQTdJWmFpa2lCNXAzenN5TkNiLXkzWkRWR0wtVHluY2MtMDZlVFd3?oc=5",
+   "kaynak": "Google Haberler: sözleşmeli mühendis alımı",
+   "tarih": "2026-09-14T07:00:00Z",
+   "ilk_gorulme": "2026-10-08T18:53:43Z",
+   "seviye": "toplu",
+   "nedenler": [
+    "Toplu personel alımı: kadro listesinde mühendis var mı bak"
+   ],
+   "gercekler": {
+    "kpss_durum": "belirsiz",
+    "kpss_yillari": [],
+    "puan_turleri": {},
+    "genel_puanlar": [],
+    "yas_siniri": null,
+    "iller": [],
+    "ehliyet": false,
+    "bolumler": []
+   },
+   "elendi": []
+  },
+  {
+   "id": "CBMid0FVX3lxTFBVZVk5bEoxdmJBQnZTSVN3c1NyMk82aFFNeUhFZUZqT2FkM1paNDVuc2trRENlX0lVWTlNR1hJdXNoQkxhUnlvN0c5ODhKbmpDdm9KWWZiZzB1d0lEcWdXT3oyTXRMRDNBMUFXY2FWLUV4QkdkbWI0",
+   "baslik": "Kamuya Eylül Ayı 8 Bin 74 Memur Personel Alımı Yapılacak!",
+   "url": "https://news.google.com/rss/articles/CBMid0FVX3lxTFBVZVk5bEoxdmJBQnZTSVN3c1NyMk82aFFNeUhFZUZqT2FkM1paNDVuc2trRENlX0lVWTlNR1hJdXNoQkxhUnlvN0c5ODhKbmpDdm9KWWZiZzB1d0lEcWdXT3oyTXRMRDNBMUFXY2FWLUV4QkdkbWI0?oc=5",
+   "kaynak": "Google Haberler: Sağlık Bilimleri Üniversitesi sözleşmeli personel alımı",
+   "tarih": "2026-09-11T07:00:00Z",
+   "ilk_gorulme": "2026-10-08T18:53:43Z",
+   "seviye": "toplu",
+   "nedenler": [
+    "Toplu personel alımı: kadro listesinde mühendis var mı bak"
+   ],
+   "gercekler": {
+    "kpss_durum": "belirsiz",
+    "kpss_yillari": [],
+    "puan_turleri": {},
+    "genel_puanlar": [],
+    "yas_siniri": null,
+    "iller": [],
+    "ehliyet": false,
+    "bolumler": []
+   },
+   "elendi": []
+  },
+  {
+   "id": "CBMioAFBVV95cUxOUjBUczR2WDFKcDhTM2dKVXZVZk5ub19GZ1oxMUhhc2pkeHNsUlN6N3FsdWFKdU9vWlA0VVVjcUdwdndlNllzcTZOTnlVbkpFLVJXSGtDMVRGNmZTbW9sZU95VHdqMk9obGlNVDJ1dFdOR1RRWlduZUNIZy0yVmVsNUhfbkhTRVpxQnlTTUVWLXJsZlBXZzltM1dVZXl1N1Yx",
+   "baslik": "Konya’daki üniversite personel alacak! Son gün yaklaşıyor",
+   "url": "https://news.google.com/rss/articles/CBMioAFBVV95cUxOUjBUczR2WDFKcDhTM2dKVXZVZk5ub19GZ1oxMUhhc2pkeHNsUlN6N3FsdWFKdU9vWlA0VVVjcUdwdndlNllzcTZOTnlVbkpFLVJXSGtDMVRGNmZTbW9sZU95VHdqMk9obGlNVDJ1dFdOR1RRWlduZUNIZy0yVmVsNUhfbkhTRVpxQnlTTUVWLXJsZlBXZzltM1dVZXl1N1Yx?oc=5",
+   "kaynak": "Google Haberler: üniversite sözleşmeli personel alımı mühendis",
+   "tarih": "2026-09-09T07:00:00Z",
+   "ilk_gorulme": "2026-10-08T18:53:43Z",
+   "seviye": "toplu",
+   "nedenler": [
+    "Toplu personel alımı: kadro listesinde mühendis var mı bak"
+   ],
+   "gercekler": {
+    "kpss_durum": "belirsiz",
+    "kpss_yillari": [],
+    "puan_turleri": {},
+    "genel_puanlar": [],
+    "yas_siniri": null,
+    "iller": [
+     "Konya"
+    ],
+    "ehliyet": false,
+    "bolumler": []
+   },
+   "elendi": []
+  },
   {
    "id": "bd926607c00302f8",
    "baslik": "ÖZELLEŞTİRME İDARESİ BAŞKANLIĞI - 2026-2 ÖZELLEŞTİRME İDARESİ BAŞKANLIĞI UZMAN YARDIMCILIĞI GİRİŞ SINAVI DUYURUSU",
