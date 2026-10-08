@@ -56,7 +56,7 @@ Tüm bu ayarlar `scraper/ayar.json` içindedir (iller, yıl, bitiş tarihi, aram
 
 | Kaynak | Ne verir |
 |---|---|
-| **Kariyer Kapısı** (`kariyerkapisi.gov.tr/RSS`) | Resmî kamu ilanları. RSS yalnızca başlık verir; sitenin kendi herkese açık API'si de çağrılarak pozisyon listesi ve KPSS şartları okunur. |
+| **Kariyer Kapısı** (`kariyerkapisi.gov.tr/RSS`) | Resmî kamu ilanlarının başlıkları (hangi kurum, ne zaman). İçerik için aşağıdaki nota bak. |
 | Google Haberler (10 sorgu, son 30 gün) | Haber başlıkları. Gövde okunamaz; başlıktan sınıflanır. |
 | İşin Olsa RSS | Kamu ilanı haberleri **tam metinle** (kadro listesi dahil) |
 | ÖSYM duyuruları | KPSS merkezi yerleştirme (tercih) kılavuzu yayımlanınca haber vermesi beklenir |
@@ -64,10 +64,12 @@ Tüm bu ayarlar `scraper/ayar.json` içindedir (iller, yıl, bitiş tarihi, aram
 
 Kaynakların çalışıp çalışmadığı sayfadaki *Kaynak sağlığı* bölümünde görünür.
 
-> **Kariyer Kapısı ayrıntı API'si:** İlan metni siteye görsel/JavaScript ile gelir; ayrıntılar `api.kariyerkapisi.gov.tr`
-> üzerinden okunur. Bu adrese kodu yazdığım ortamdan ulaşamadım (bağlantı kesiliyor), bu yüzden yalnızca GitHub'da
-> çalışıp çalışmadığına bakılabilir. Ulaşılamazsa ilanlar **yalnızca başlıkla** "Toplu alım" sekmesine düşer
-> ("Ayrıntı alınamadı" etiketiyle) ve her taramada yeniden denenir; ulaşılınca doğru sekmeye taşınır ve bildirim gelir.
+> **Sınır — Kariyer Kapısı ilan içeriği:** Resmî RSS yalnızca başlık verir ("X ÜNİVERSİTESİ - SÖZLEŞMELİ PERSONEL ALIM İLANI");
+> kadro listesi ve KPSS şartları sitenin ayrı bir API'siyle gelir. Bu API'ye GitHub Actions'tan **zaman aşımı** alınıyor
+> (site yurt dışı sunuculara kapalı görünüyor), bu yüzden Kariyer Kapısı ilanları "Toplu alım" sekmesine düşer; ilanı
+> açıp kadro listesine kendin bakmalısın. Kod hazırdır ve testlidir: Türkiye'den çalışan bir ortamda
+> (ör. telefonda Termux) `ayar.json` içinde `"kk_api": true` yapılırsa pozisyonlar okunur ve biyomedikal kadrosu olan
+> ilanlar doğru sekmeye taşınır.
 > `ilan.gov.tr` sertifika zinciri eksik olduğu için doğrulanamıyor; Resmî Gazete'ye erişilemedi. İkisi için
 > sayfadaki *Elle kontrol et* bağlantılarını kullan.
 

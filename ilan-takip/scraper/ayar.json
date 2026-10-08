@@ -24,5 +24,6 @@
     {"ad": "ÖSYM duyuruları", "tur": "sayfa", "url": "https://www.osym.gov.tr/", "filtre": "kpss|tercih|yerlestirme|muhendis|personel", "resmi": true},
     {"ad": "TİTCK duyuruları", "tur": "sayfa", "url": "https://www.titck.gov.tr/", "filtre": "personel|alim|ilan|muhendis|sinav|kpss", "resmi": true}
   ],
-  "bildirim_seviyeleri": ["guclu", "olasi", "lisans"]
+  "bildirim_seviyeleri": ["guclu", "olasi", "lisans"],
+  "kk_api": false
 }

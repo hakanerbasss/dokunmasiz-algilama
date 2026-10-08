@@ -233,13 +233,26 @@ class Kategoriler(Taban):
 
     def setUp(self):
         super().setUp()
-        self.ayar({**AYAR, "kaynaklar": [{"ad": "Kariyer Kapısı (resmî RSS)", "tur": "rss", "url": self.KK, "resmi": True},
+        self.ayar({**AYAR, "kk_api": True,
+                   "kaynaklar": [{"ad": "Kariyer Kapısı (resmî RSS)", "tur": "rss", "url": self.KK, "resmi": True},
                                          {"ad": "Deneme RSS", "tur": "rss", "url": "https://haber.test/feed"}]})
         self.sayfalar["https://haber.test/feed"] = rss(("Jaguar yeni model tanıttı", "https://haber.test/0", ""))
         self.sayfalar[self.KK] = kk_rss()
         tara.calistir()                      # "ilk çalışma" bitsin; sonraki çalışmalar tekil bildirim gönderir
         self.bildirimler.clear()
         self.api_cagri.clear()
+
+    def test_kk_api_varsayilan_kapali(self):
+        self.ayar({**AYAR, "kaynaklar": [{"ad": "Kariyer Kapısı (resmî RSS)", "tur": "rss", "url": self.KK, "resmi": True}]})
+        self.sayfalar[self.KK] = kk_rss(("KOCAELİ ÜNİVERSİTESİ REKTÖRLÜĞÜ - SÖZLEŞMELİ PERSONEL ALIM İLANI", GUID_A))
+        tara.calistir()
+        d = self.ilanlar()
+        ilan = [i for i in d["ilanlar"] if "KOCAELİ" in i["baslik"]][0]
+        self.assertEqual(ilan["seviye"], "toplu")
+        self.assertNotIn("ayrinti", ilan)                     # yeniden deneme etiketi yok
+        self.assertIn("Resmî Kariyer Kapısı ilanı", ilan["nedenler"][0])
+        self.assertEqual(self.api_cagri, [])                  # API hiç çağrılmaz
+        self.assertNotIn(tara.KK_DURUM_AD, [k["ad"] for k in d["kaynaklar"]])
 
     def test_kk_govde_metni(self):
         self.api[GUID_A] = API_BIO

@@ -217,14 +217,18 @@ def kk_govde(guid):
 
 
 class KkApi:
-    """İki ardışık hatada o çalıştırma için denemeyi bırakır (API engelliyse dakikalarca beklemeyelim)."""
+    """İki ardışık hatada o çalıştırma için denemeyi bırakır (API engelliyse dakikalarca beklemeyelim).
 
-    def __init__(self):
+    Bu API GitHub Actions'tan zaman aşımına uğruyor (site yurt dışı sunuculara kapalı görünüyor), bu yüzden
+    ayar.json'da "kk_api": true yapılmadıkça hiç çağrılmaz. Türkiye'den çalışan bir ortamda (ör. Termux) açılabilir."""
+
+    def __init__(self, etkin=False):
+        self.etkin = etkin
         self.deneme = self.basari = self.ardisik = 0
 
     def getir(self, guid):
-        """-> metin (başarı; ayrıntı yoksa boş) ya da None (erişilemedi)."""
-        if self.ardisik >= 2:
+        """-> metin (başarı; ayrıntı yoksa boş) ya da None (kapalı / erişilemedi)."""
+        if not self.etkin or self.ardisik >= 2:
             return None
         self.deneme += 1
         try:
@@ -366,7 +370,7 @@ def calistir(kuru=False, sifirla=False):
     ilanlar = [] if sifirla else list(onceki.get("ilanlar", []))
     seviyeler = tuple(ayar.get("bildirim_seviyeleri", VARSAYILAN_BILDIRIM))
     tk_gorulen = {k for k in gorulen if k.startswith("t:")}
-    yeniler, detay, kk = [], 0, KkApi()
+    yeniler, detay, kk = [], 0, KkApi(bool(ayar.get("kk_api", False)))
 
     def kaydet(o, govde, ayrinti, ilk_gorulme):
         d = analiz.degerlendir(o["baslik"], govde, ayar, profil, yil=bugun.year, resmi=o.get("resmi", False))
@@ -392,13 +396,15 @@ def calistir(kuru=False, sifirla=False):
         guid = kk_guid(o["url"])
         if guid:
             metin = kk.getir(guid)
-            ayrinti = metin is not None
+            ayrinti = (metin is not None) if kk.etkin else None
             govde = (metin or "") + "\n" + o.get("kategori", "")
         elif not govde and "news.google.com" not in o["url"] and detay < DETAY_SINIRI:
             govde, detay = govde_getir(o["url"]), detay + 1
         ilan, d = kaydet(o, govde, ayrinti, simdi_s)
         if ilan is None:
             continue
+        if guid and ayrinti is None:
+            ilan["nedenler"] = ["Resmî Kariyer Kapısı ilanı: kadro listesi ve şartlar ilan sayfasında (otomatik okunamıyor)"]
         ilanlar.append(ilan)
         print(f"  + [{d['seviye']:6}] {o['baslik'][:100]}" + (f"   (eleme: {'; '.join(d['elendi'] + d['elendi_profil'])})" if d["elendi"] or d["elendi_profil"] else ""))
         if bildirilebilir(ilan, d["elendi_profil"], simdi, seviyeler):
