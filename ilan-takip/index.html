@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kamu İlan Takip</title>
+<meta name="description" content="Biyomedikal mühendisi için KPSS ile kamu personel alımı takibi">
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #f5f7f8; --kart: #ffffff; --yazi: #1b2a2f; --soluk: #5c6b70; --cizgi: #dbe2e5;
+    --vurgu: #0b7285; --vurgu-yazi: #ffffff;
+    --iyi-bg: #e3f6ea; --iyi: #14663a; --uyar-bg: #fff3d6; --uyar: #7a5200;
+    --kotu-bg: #fde7e7; --kotu: #9b1c1c; --not-bg: #e8eef0; --yeni: #d6336c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101a1d; --kart: #18262a; --yazi: #e6eef0; --soluk: #9db0b6; --cizgi: #2a3d43;
+      --vurgu: #3bb5cc; --vurgu-yazi: #06232a;
+      --iyi-bg: #12361f; --iyi: #7fe0a4; --uyar-bg: #3a2f10; --uyar: #f0c866;
+      --kotu-bg: #3d1717; --kotu: #ff9d9d; --not-bg: #213338; --yeni: #ff7aa8;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--yazi);
+         font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header, main { max-width: 760px; margin: 0 auto; padding: 0 16px; }
+  header { padding-top: 20px; }
+  h1 { font-size: 1.35rem; margin: 0; }
+  .alt { color: var(--soluk); margin: 2px 0 10px; font-size: .9rem; }
+  .durum { font-size: .85rem; color: var(--soluk); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .durum b { color: var(--yazi); font-weight: 600; }
+  .kart { background: var(--kart); border: 1px solid var(--cizgi); border-radius: 12px; margin: 12px 0; }
+  details.kart > summary { padding: 12px 14px; cursor: pointer; font-weight: 600; list-style: none; }
+  details.kart > summary::-webkit-details-marker { display: none; }
+  details.kart > summary::after { content: "▾"; float: right; color: var(--soluk); }
+  details.kart[open] > summary::after { content: "▴"; }
+  details.kart .ic { padding: 0 14px 14px; font-size: .92rem; }
+  .ic p { margin: .5em 0; }
+  .form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .form label { display: grid; gap: 4px; font-size: .8rem; color: var(--soluk); }
+  input, button { font: inherit; }
+  input[type=text], input[type=search], input[type=number] {
+    width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--cizgi);
+    background: var(--bg); color: var(--yazi); }
+  .sekmeler { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 8px; scrollbar-width: none; }
+  .sekmeler button { white-space: nowrap; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--cizgi);
+                     background: var(--kart); color: var(--yazi); cursor: pointer; }
+  .sekmeler button[aria-pressed=true] { background: var(--vurgu); color: var(--vurgu-yazi); border-color: var(--vurgu); }
+  .sekmeler small { opacity: .75; margin-left: 4px; }
+  #ara { margin: 4px 0 4px; }
+  .ilan { padding: 12px 14px; margin: 10px 0; }
+  .ilan h3 { font-size: 1rem; margin: 6px 0 4px; line-height: 1.35; }
+  .ilan h3 a { color: var(--yazi); text-decoration: none; }
+  .ilan h3 a:hover { text-decoration: underline; }
+  .ust { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: .78rem; }
+  .seviye { font-weight: 600; color: var(--vurgu); }
+  .yeni { background: var(--yeni); color: #fff; border-radius: 6px; padding: 1px 6px; font-weight: 700; font-size: .7rem; }
+  .meta { color: var(--soluk); font-size: .8rem; }
+  .cipler { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .cip { font-size: .76rem; padding: 2px 8px; border-radius: 999px; background: var(--not-bg); }
+  .cip.iyi { background: var(--iyi-bg); color: var(--iyi); }
+  .cip.uyar { background: var(--uyar-bg); color: var(--uyar); }
+  .cip.kotu { background: var(--kotu-bg); color: var(--kotu); }
+  .neden { font-size: .8rem; color: var(--soluk); margin-top: 6px; }
+  .bos { text-align: center; color: var(--soluk); padding: 28px 8px; }
+  .dugme { padding: 10px 14px; border-radius: 8px; border: 1px solid var(--vurgu); background: var(--vurgu);
+           color: var(--vurgu-yazi); cursor: pointer; font-weight: 600; text-decoration: none; display: inline-block; }
+  .dugme.ikincil { background: transparent; color: var(--vurgu); }
+  .satir { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+  code { background: var(--not-bg); padding: 1px 6px; border-radius: 5px; word-break: break-all; }
+  ul.baglar { padding-left: 18px; margin: .4em 0; }
+  ul.baglar li { margin: 5px 0; }
+  a { color: var(--vurgu); }
+  .saglik li.ok::marker { content: "✓ "; color: var(--iyi); }
+  .saglik li.hata::marker { content: "✗ "; color: var(--kotu); }
+  footer { max-width: 760px; margin: 18px auto 40px; padding: 0 16px; color: var(--soluk); font-size: .78rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Kamu İlan Takip</h1>
+  <p class="alt">Biyomedikal mühendisi · KPSS-2026 Lisans · 2 yıllık otomatik tarama</p>
+  <div class="durum" id="durum">Yükleniyor…</div>
+</header>
+
+<main>
+  <details class="kart" id="profilKart">
+    <summary>Profilim <span id="profilOzet" class="meta"></span></summary>
+    <div class="ic">
+      <p>İlanlar bu bilgilere göre elenir. <b>Yalnızca bu telefonda saklanır</b>, hiçbir yere gönderilmez.</p>
+      <div class="form">
+        <label>KPSSP1 puanı<input type="text" inputmode="decimal" id="p1" autocomplete="off"></label>
+        <label>KPSSP2 puanı<input type="text" inputmode="decimal" id="p2" autocomplete="off"></label>
+        <label>KPSSP3 puanı<input type="text" inputmode="decimal" id="p3" autocomplete="off"></label>
+        <label>Doğum yılı<input type="text" inputmode="numeric" id="dogum" maxlength="4" autocomplete="off"></label>
+      </div>
+    </div>
+  </details>
+
+  <nav class="sekmeler" id="sekmeler" aria-label="İlan türleri"></nav>
+  <input type="search" id="ara" placeholder="Ara: kurum, il, kelime…" aria-label="Ara">
+  <section id="liste" aria-live="polite"></section>
+
+  <details class="kart">
+    <summary>Elle kontrol et</summary>
+    <div class="ic">
+      <p>Kariyer Kapısı resmî yayınından taranır; ilan.gov.tr ve Resmî Gazete otomatik taranamaz. Haftada bir göz atmanda fayda var.</p>
+      <ul class="baglar" id="baglar"></ul>
+    </div>
+  </details>
+
+  <details class="kart" id="kurulum">
+    <summary>Telefona bildirim kurulumu</summary>
+    <div class="ic">
+      <p>Yeni uygun ilan çıkınca telefonuna anında haber gelir. Ücretsiz <b>ntfy</b> servisi kullanılır, hesap gerekmez.</p>
+      <p><b>1.</b> Kendine özel bir konu adı üret:</p>
+      <div class="satir"><button class="dugme" id="konuUret" type="button">Konu adı üret</button>
+        <code id="konu">—</code><button class="dugme ikincil" id="konuKopya" type="button" hidden>Kopyala</button></div>
+      <p><b>2.</b> Telefona <b>ntfy</b> uygulamasını kur (Play Store / App Store) ve bu konuya abone ol. Ya da tarayıcıda aç:
+        <a id="ntfyLink" href="https://ntfy.sh/" target="_blank" rel="noopener noreferrer">ntfy.sh</a></p>
+      <p><b>3.</b> GitHub'da gizli anahtar olarak ekle: <a id="secretLink" href="https://github.com/" target="_blank" rel="noopener noreferrer">Yeni secret sayfası</a><br>
+        Ad: <code>NTFY_TOPIC</code> &nbsp; Değer: yukarıdaki konu adı</p>
+      <p><b>4. (İsteğe bağlı)</b> Bildirimler de puanına ve yaşına göre filtrelensin istersen profilini ikinci bir secret olarak ekle
+        (ad: <code>PROFIL_JSON</code>):</p>
+      <div class="satir"><button class="dugme ikincil" id="profilKopya" type="button">PROFIL_JSON değerini kopyala</button><span class="meta" id="kopyaDurum"></span></div>
+      <p class="meta">Depo herkese açık olduğu için puanlarını koda yazmadım. Secret'lar herkese kapalıdır.</p>
+    </div>
+  </details>
+
+  <details class="kart">
+    <summary>Kaynak sağlığı</summary>
+    <div class="ic"><ul class="baglar saglik" id="saglik"></ul></div>
+  </details>
+</main>
+
+<footer>Veri: <code>data/ilanlar.json</code> — GitHub Actions her 3 saatte bir günceller. Sınıflandırma otomatiktir; başvurmadan önce ilanın kendisini ve şartlarını mutlaka oku.</footer>
+
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* gizli sekme vb. */ } },
+};
+const fold = (s) => String(s || "").toLocaleLowerCase("tr");
+const sayi = (x) => { const n = parseFloat(String(x ?? "").replace(",", ".")); return Number.isNaN(n) ? null : n; };
+
+function el(tag, attrs, ...cocuklar) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === false || v == null) continue;
+    if (k === "class") e.className = v; else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of cocuklar.flat()) if (c != null) e.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return e;
+}
+const guvenliUrl = (u) => (/^https?:\/\//i.test(u || "") ? u : "#");
+
+// ------------------------------------------------------------------ profil
+const PROFIL_ANAHTAR = "profil-v1";
+function profil() { return LS.get(PROFIL_ANAHTAR, { p1: "", p2: "", p3: "", dogum: "" }); }
+function profilPuanlar(p) {
+  const o = {};
+  for (const t of ["P1", "P2", "P3"]) { const n = sayi(p[t.toLowerCase()]); if (n !== null) o[t] = n; }
+  return o;
+}
+function profilJson(p) {
+  const d = parseInt(p.dogum, 10);
+  return JSON.stringify({ dogum_yili: Number.isNaN(d) ? null : d, puanlar: profilPuanlar(p) });
+}
+
+// ------------------------------------------------------------------ değerlendirme
+// Sunucu "elendi" alanını (yıl, il, düzey) hazır verir; puan ve yaşı burada, kişisel profile göre hesaplarız.
+function degerlendir(i, p, ayar) {
+  const g = i.gercekler || {};
+  const red = [...(i.elendi || [])], uyar = [], iyi = [], notr = [], iller = [];
+  const puan = profilPuanlar(p), puanVar = Object.keys(puan).length > 0;
+  const kpssiz = g.kpss_durum === "yok";
+  const turler = kpssiz ? [] : Object.entries(g.puan_turleri || {});
+  if (turler.length && puanVar) {
+    const sahip = turler.filter(([t]) => t in puan);
+    if (!sahip.length) red.push(`KPSS${turler.map((x) => x[0]).join("/")} puan türü isteniyor (sende yok)`);
+    else if (sahip.every(([t, mn]) => mn != null && puan[t] < mn)) {
+      const [t, mn] = sahip[0];
+      red.push(`KPSS${t} en az ${mn} isteniyor (sende ${puan[t]})`);
+    } else sahip.forEach(([t, mn]) => iyi.push(mn != null ? `KPSS${t} ≥ ${mn} ✓` : `KPSS${t} ✓`));
+  } else if (turler.length) {
+    uyar.push("KPSS" + turler.map(([t, mn]) => t + (mn ? ` ≥ ${mn}` : "")).join(" / ") + " — puanlarını gir");
+  } else if ((g.genel_puanlar || []).length && puanVar) {
+    const en = Math.max(...Object.values(puan)), alt = Math.min(...g.genel_puanlar);
+    if (en < alt) uyar.push(`Taban puan ~${alt} (en yüksek puanın ${en})`);
+  }
+  const dogum = parseInt(p.dogum, 10);
+  if (g.yas_siniri) {
+    if (!Number.isNaN(dogum)) {
+      const enKucukYas = new Date().getFullYear() - dogum - 1;
+      if (enKucukYas >= g.yas_siniri) red.push(`Yaş sınırı ${g.yas_siniri} (sen ${enKucukYas}+)`);
+      else iyi.push(`Yaş sınırı ${g.yas_siniri} ✓`);
+    } else uyar.push(`Yaş sınırı ${g.yas_siniri}`);
+  }
+  if ((g.kpss_yillari || []).length && !red.some((r) => /KPSS puanı esas/.test(r))) iyi.push(`KPSS ${g.kpss_yillari.join("/")} ✓`);
+  if (g.ehliyet) notr.push("Ehliyet geçiyor");
+  if (g.kpss_durum === "yok") iyi.push("KPSS'siz");
+  if (g.kpss_durum === "karma") notr.push("KPSS'siz de olabilir");
+  if (i.ayrinti === false) uyar.push("Ayrıntı alınamadı — ilanı açıp kadro listesine bak");
+  const tercih = new Set(ayar.tercih_iller || []), yakin = new Set(ayar.yakin_iller || []), engel = new Set(ayar.engelli_iller || []);
+  for (const il of g.iller || []) iller.push([il, tercih.has(il) ? "iyi" : yakin.has(il) ? "" : engel.has(il) ? "kotu" : ""]);
+  return { red, uyar, iyi, notr, iller };
+}
+function kova(i, d) {
+  if (d.red.length) return "elenen";
+  const kd = (i.gercekler || {}).kpss_durum;
+  switch (i.seviye) {
+    case "guclu": return kd === "yok" ? "biosiz" : "bio";
+    case "lisans": return "lisans";
+    case "olasi": return "muh";
+    case "toplu": return "toplu";
+    default: return "diger";
+  }
+}
+
+// ------------------------------------------------------------------ çizim
+const SEKMELER = [["bio", "Biyomedikal · KPSS'li"], ["biosiz", "Biyomedikal · KPSS'siz"], ["lisans", "Herhangi lisans"],
+                  ["muh", "Mühendis"], ["toplu", "Toplu alım"], ["elenen", "Elenenler"], ["diger", "Düşük ihtimal"]];
+const SEVIYE = { guclu: "🔥 Biyomedikal", lisans: "📄 Herhangi lisans · KPSS'li", olasi: "⚙️ Mühendis", toplu: "📋 Toplu alım", dusuk: "▫️ Düşük ihtimal" };
+const AGIRLIK = { guclu: 0, olasi: 1, lisans: 2, toplu: 3, dusuk: 4 };
+let VERI = null, SEKME = LS.get("sekme-v2", null), SON_ZIYARET = LS.get("sonZiyaret", 0);
+
+function gore(iso) {
+  if (!iso) return "";
+  const dk = (Date.now() - new Date(iso).getTime()) / 60000;
+  const rtf = new Intl.RelativeTimeFormat("tr", { numeric: "auto" });
+  if (dk < 60) return rtf.format(-Math.max(1, Math.round(dk)), "minute");
+  if (dk < 1440) return rtf.format(-Math.round(dk / 60), "hour");
+  if (dk < 43200) return rtf.format(-Math.round(dk / 1440), "day");
+  return new Date(iso).toLocaleDateString("tr-TR");
+}
+
+function kartYap(i, d) {
+  const yeni = new Date(i.ilk_gorulme).getTime() > SON_ZIYARET && SON_ZIYARET > 0;
+  const cipler = [
+    ...d.iller.map(([il, tur]) => el("span", { class: "cip " + tur }, (tur === "iyi" ? "★ " : "") + il)),
+    ...d.iyi.map((t) => el("span", { class: "cip iyi" }, t)),
+    ...d.notr.map((t) => el("span", { class: "cip" }, t)),
+    ...d.uyar.map((t) => el("span", { class: "cip uyar" }, t)),
+    ...d.red.map((t) => el("span", { class: "cip kotu" }, t)),
+  ];
+  return el("article", { class: "kart ilan" },
+    el("div", { class: "ust" }, el("span", { class: "seviye" }, (SEVIYE[i.seviye] || i.seviye) + (i.seviye === "guclu" ? ((i.gercekler || {}).kpss_durum === "yok" ? " · KPSS'siz" : " · KPSS'li") : "")), yeni ? el("span", { class: "yeni" }, "YENİ") : null),
+    el("h3", null, el("a", { href: guvenliUrl(i.url), target: "_blank", rel: "noopener noreferrer" }, i.baslik)),
+    el("div", { class: "meta" }, [i.kaynak.replace(/^Google Haberler: .*/, "Google Haberler"), gore(i.tarih || i.ilk_gorulme)].filter(Boolean).join(" · ")),
+    cipler.length ? el("div", { class: "cipler" }, cipler) : null,
+    (i.nedenler || []).length ? el("div", { class: "neden" }, i.nedenler.join(" · ")) : null);
+}
+
+function ciz() {
+  const liste = $("#liste");
+  liste.replaceChildren();
+  if (!VERI) return;
+  const p = profil(), ayar = VERI.ayar || {};
+  const q = fold($("#ara").value).trim();
+  const hepsi = (VERI.ilanlar || []).map((i) => ({ i, d: degerlendir(i, p, ayar) })).map((x) => ({ ...x, k: kova(x.i, x.d) }));
+  const sayac = Object.fromEntries(SEKMELER.map(([k]) => [k, hepsi.filter((x) => x.k === k).length]));
+  if (!SEKME || !(SEKME in sayac)) SEKME = ["bio", "biosiz", "lisans", "muh"].find((k) => sayac[k]) || "bio";
+  const sek = $("#sekmeler");
+  sek.replaceChildren(...SEKMELER.map(([k, ad]) => {
+    const b = el("button", { type: "button", "aria-pressed": String(k === SEKME) }, ad, el("small", null, sayac[k]));
+    b.addEventListener("click", () => { SEKME = k; LS.set("sekme-v2", k); ciz(); });
+    return b;
+  }));
+  const secili = hepsi.filter((x) => x.k === SEKME)
+    .filter((x) => !q || fold([x.i.baslik, x.i.kaynak, (x.i.gercekler.iller || []).join(" ")].join(" ")).includes(q))
+    .sort((a, b) => (AGIRLIK[a.i.seviye] - AGIRLIK[b.i.seviye]) || ((b.i.tarih || b.i.ilk_gorulme) > (a.i.tarih || a.i.ilk_gorulme) ? 1 : -1));
+  if (!secili.length) {
+    liste.append(el("div", { class: "bos" }, ["bio", "biosiz"].includes(SEKME)
+      ? "Şu an bu türde açık ilan yok. Tarama her 3 saatte bir çalışıyor; çıkınca burada görünür ve bildirim gelir."
+      : "Bu listede ilan yok."));
+    return;
+  }
+  liste.append(...secili.slice(0, 120).map((x) => kartYap(x.i, x.d)));
+}
+
+function durumYaz() {
+  const d = $("#durum");
+  d.replaceChildren();
+  if (!VERI) return;
+  const bugun = new Date(), bitis = new Date(VERI.bitis + "T23:59:59");
+  const kalan = Math.max(0, Math.ceil((bitis - bugun) / 86400000));
+  const parca = (a, b) => el("span", null, a + " ", el("b", null, b));
+  d.append(parca("Takip bitişi:", `${new Date(VERI.bitis).toLocaleDateString("tr-TR")} (${kalan} gün)`),
+           parca("Veri:", gore(VERI.guncelleme)), el("span", { id: "sonTarama" }));
+  const saglik = $("#saglik");
+  saglik.replaceChildren(...(VERI.kaynaklar || []).map((k) => el("li", { class: k.tamam ? "ok" : "hata" }, k.ad + (k.tamam ? "" : " — erişilemedi"))));
+  // Son otomatik tarama zamanını GitHub'dan öğren (en iyi çaba; başarısız olursa sessizce atla).
+  if (VERI.depo) {
+    fetch(`https://api.github.com/repos/${VERI.depo}/actions/workflows/ilan-tara.yml/runs?per_page=1&status=success`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const r = j && j.workflow_runs && j.workflow_runs[0];
+        if (!r) return;
+        const saat = (Date.now() - new Date(r.updated_at).getTime()) / 3600000;
+        const kutu = $("#sonTarama");
+        kutu.replaceChildren("Son tarama: ", el("b", null, gore(r.updated_at)));
+        if (saat > 12) kutu.append(" ⚠ Tarama durmuş olabilir: GitHub'da Actions sekmesinden “ilan-tara” akışını kontrol et.");
+      })
+      .catch(() => {});
+  }
+}
+
+// ------------------------------------------------------------------ bağlantılar ve kurulum
+const BAGLANTILAR = [
+  ["Kariyer Kapısı — kamu iş ilanları (resmî)", "https://kariyerkapisi.gov.tr/"],
+  ["ilan.gov.tr — Resmî İlan (personel alımı)", "https://www.ilan.gov.tr/"],
+  ["Resmî Gazete (üniversite ve kurum ilanları)", "https://www.resmigazete.gov.tr/"],
+  ["ÖSYM — KPSS duyuruları", "https://www.osym.gov.tr/SinavGrubu/Index/3"],
+  ["Sağlık Bakanlığı personel duyuruları", "https://www.saglik.gov.tr/TR-99316/personel-duyurulari.html"],
+  ["TİTCK (İlaç ve Tıbbi Cihaz Kurumu)", "https://www.titck.gov.tr/"],
+  ["Google: son 1 haftanın biyomedikal mühendis ilanları", "https://www.google.com/search?q=biyomedikal+m%C3%BChendis+al%C4%B1m%C4%B1&tbs=qdr:w"],
+];
+function depoAdi() {
+  if (VERI && VERI.depo) return VERI.depo;
+  const m = location.hostname.match(/^([^.]+)\.github\.io$/);
+  const yol = location.pathname.split("/").filter(Boolean)[0];
+  return m && yol ? `${m[1]}/${yol}` : "";
+}
+function secretLinkiGuncelle() {
+  const depo = depoAdi();
+  if (depo) $("#secretLink").href = `https://github.com/${depo}/settings/secrets/actions/new`;
+}
+function kurulumuBagla() {
+  $("#baglar").replaceChildren(...BAGLANTILAR.map(([ad, url]) => el("li", null, el("a", { href: url, target: "_blank", rel: "noopener noreferrer" }, ad))));
+  secretLinkiGuncelle();
+  const konu = LS.get("ntfyKonu", "");
+  const konuGoster = (k) => {
+    $("#konu").textContent = k || "—";
+    $("#konuKopya").hidden = !k;
+    $("#ntfyLink").href = k ? `https://ntfy.sh/${k}` : "https://ntfy.sh/";
+    $("#ntfyLink").textContent = k ? `ntfy.sh/${k}` : "ntfy.sh";
+  };
+  konuGoster(konu);
+  $("#konuUret").addEventListener("click", () => {
+    const a = new Uint8Array(16); crypto.getRandomValues(a);
+    const k = "ilan-" + [...a].map((b) => b.toString(36).padStart(2, "0")).join("").slice(0, 24);
+    LS.set("ntfyKonu", k); konuGoster(k);
+  });
+  const kopyala = async (metin, hedef) => {
+    try { await navigator.clipboard.writeText(metin); hedef.textContent = "Kopyalandı ✓"; }
+    catch { hedef.textContent = "Kopyalanamadı — metni elle seç"; }
+  };
+  $("#konuKopya").addEventListener("click", () => kopyala(LS.get("ntfyKonu", ""), $("#kopyaDurum")));
+  $("#profilKopya").addEventListener("click", () => kopyala(profilJson(profil()), $("#kopyaDurum")));
+}
+
+function profilBagla() {
+  const p = profil();
+  const alanlar = { p1: "#p1", p2: "#p2", p3: "#p3", dogum: "#dogum" };
+  const ozet = () => {
+    const q = profil(), n = Object.keys(profilPuanlar(q)).length;
+    $("#profilOzet").textContent = n ? `· P3 ${q.p3 || "—"}` : "· puanlarını gir";
+  };
+  for (const [k, sel] of Object.entries(alanlar)) {
+    $(sel).value = p[k] || "";
+    $(sel).addEventListener("input", () => { const q = profil(); q[k] = $(sel).value.trim(); LS.set(PROFIL_ANAHTAR, q); ozet(); ciz(); });
+  }
+  ozet();
+  if (!Object.keys(profilPuanlar(p)).length) $("#profilKart").open = true;
+}
+
+// ------------------------------------------------------------------ başlangıç
+async function yukle() {
+  try {
+    const r = await fetch("data/ilanlar.json?t=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    VERI = await r.json();
+  } catch {
+    $("#durum").textContent = "";
+    $("#liste").replaceChildren(el("div", { class: "bos" }, "Henüz tarama verisi yok. İlk otomatik tarama GitHub Actions'ta çalışınca burada görünecek."));
+    return;
+  }
+  durumYaz(); ciz(); secretLinkiGuncelle();
+}
+profilBagla();
+kurulumuBagla();
+$("#ara").addEventListener("input", ciz);
+const ziyaretiKaydet = () => LS.set("sonZiyaret", Date.now());
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") ziyaretiKaydet(); });
+addEventListener("pagehide", ziyaretiKaydet);
+yukle();
+</script>
+</body>
+</html>
