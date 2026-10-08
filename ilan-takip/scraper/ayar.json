@@ -1,0 +1,30 @@
+{
+  "baslangic_tarihi": "2026-10-08",
+  "bitis_tarihi": "2028-10-08",
+  "kpss_yillari": [2026],
+  "tercih_iller": ["İstanbul", "Tekirdağ", "Kocaeli", "Karabük", "Bartın", "Zonguldak", "Kastamonu"],
+  "yakin_iller": ["Sakarya", "Düzce", "Bolu", "Yalova", "Kırklareli", "Edirne", "Bursa", "Çanakkale", "Çankırı", "Sinop"],
+  "engelli_iller": ["Adıyaman", "Ağrı", "Ardahan", "Batman", "Bayburt", "Bingöl", "Bitlis", "Diyarbakır", "Elazığ",
+                    "Erzincan", "Erzurum", "Gaziantep", "Hakkari", "Iğdır", "Kars", "Kilis", "Malatya", "Mardin",
+                    "Muş", "Siirt", "Şanlıurfa", "Şırnak", "Tunceli", "Van"],
+  "google_haberler": [
+    "biyomedikal mühendis alımı",
+    "biyomedikal mühendisi KPSS",
+    "tıp mühendisi klinik mühendis alımı",
+    "mühendis alımı KPSS 2026",
+    "sözleşmeli mühendis alımı",
+    "Sağlık Bakanlığı mühendis alımı",
+    "Türkiye İlaç ve Tıbbi Cihaz Kurumu personel alımı",
+    "Sağlık Bilimleri Üniversitesi sözleşmeli personel alımı",
+    "üniversite sözleşmeli personel alımı mühendis",
+    "KPSS tercih kılavuzu 2026 merkezi yerleştirme"
+  ],
+  "kaynaklar": [
+    {"ad": "İşin Olsa (son yazılar)", "tur": "rss", "url": "https://www.isinolsa.com/feed/"},
+    {"ad": "İşin Olsa (2. sayfa)", "tur": "rss", "url": "https://www.isinolsa.com/feed/?paged=2"},
+    {"ad": "ÖSYM duyuruları", "tur": "sayfa", "url": "https://www.osym.gov.tr/", "filtre": "kpss|tercih|yerlestirme|muhendis|personel", "resmi": true},
+    {"ad": "TİTCK duyuruları", "tur": "sayfa", "url": "https://www.titck.gov.tr/", "filtre": "personel|alim|ilan|muhendis|sinav|kpss", "resmi": true},
+    {"ad": "Kariyer Kapısı (deneysel)", "tur": "sayfa", "url": "https://kariyerkapisi.cbiko.gov.tr/", "filtre": "muhendis|biyomedikal|personel|kpss", "resmi": true},
+    {"ad": "ilan.gov.tr (deneysel)", "tur": "sayfa", "url": "https://www.ilan.gov.tr/", "filtre": "muhendis|biyomedikal|personel|kpss", "resmi": true}
+  ]
+}
