@@ -90,6 +90,56 @@ class Sinifla(unittest.TestCase):
         self.assertEqual(sev("Lise-MYO-Lisans 133 Kontenjana Kamu Personel Alımları: KPSS 60 Yeterli"), "toplu")
 
 
+class Kategoriler(unittest.TestCase):
+    """Üç ayrı liste: KPSS'li biyomedikal, KPSS'siz biyomedikal, herhangi bir lisans (KPSS'li)."""
+
+    def durum(self, baslik, govde=""):
+        d = a.degerlendir(baslik, govde, AYAR, None, 2026)
+        return (d["seviye"], d["gercekler"]["kpss_durum"]) if d else None
+
+    def test_biyomedikal_kpssli_ve_kpsssiz_ayri(self):
+        self.assertEqual(self.durum("Üniversite KPSS ile sözleşmeli biyomedikal mühendisi alacak"), ("guclu", "var"))
+        self.assertEqual(self.durum("Hastane KPSS'siz sözleşmeli biyomedikal mühendisi alacak"), ("guclu", "yok"))
+        self.assertEqual(self.durum("Biyomedikal mühendisi alınacak, KPSS şartı aranmaz"), ("guclu", "yok"))
+        self.assertEqual(self.durum("Biyomedikal mühendisi alınacak"), ("guclu", "belirsiz"))
+
+    def test_karma(self):
+        self.assertEqual(self.durum("Merkez Bankası mühendis alacak! KPSS Şartsız veya KPSS İle"), ("olasi", "karma"))
+
+    def test_kpsssiz_biyomedikalde_kpss_elemesi_uygulanmaz(self):
+        d = a.degerlendir("Hastane KPSS'siz biyomedikal mühendisi alacak", "2024 yılı sonuçları", AYAR, None, 2026)
+        self.assertEqual(d["elendi"], [])
+        g = {"kpss_durum": "yok", "puan_turleri": {"P3": 90.0}, "yas_siniri": None}
+        self.assertEqual(a.profil_elemeleri(g, {"puanlar": {"P3": 60.0}}, 2026), [])
+        g["kpss_durum"] = "var"
+        self.assertTrue(a.profil_elemeleri(g, {"puanlar": {"P3": 60.0}}, 2026))
+
+    def test_ozel_sektor_biyomedikal_yine_gorunur(self):
+        s = a.sinifla("Firma biyomedikal mühendisi alacak, başvurular başladı")
+        self.assertEqual(s[0], "guclu")
+        self.assertIn("Özel sektör", " ".join(s[1]))
+
+    def test_herhangi_lisans(self):
+        self.assertEqual(sev("DHMİ 12 Personel Alımı Yapacak! Herhangi Bir Lisans Mezununa Memur Kadrosu Açıldı"), "lisans")
+        self.assertEqual(sev("SGK 31 Personel Alımı Yapacak! Herhangi Bir Ön Lisans ve Lisans Mezununa Memur Kadrosu"), "lisans")
+        self.assertEqual(sev("Bakanlık KPSS ile personel alacak: bölüm şartı aranmaz, lisans mezunu"), "lisans")
+        self.assertEqual(self.durum("DHMİ 12 Personel Alımı Yapacak! Herhangi Bir Lisans Mezununa Memur Kadrosu Açıldı"),
+                         ("lisans", "belirsiz"))
+
+    def test_herhangi_lisans_elenenler(self):
+        self.assertIsNone(sev("Kurum 10 personel alacak: Herhangi Bir Ön Lisans Mezununa Memur Kadrosu"))     # lisans değil
+        self.assertIsNone(sev("Kurum 10 personel alacak: Herhangi Bir Lisans Mezununa KPSS'siz Alım"))        # KPSS'siz
+        self.assertIsNone(sev("Kurum 10 bekçi alacak: Herhangi Bir Lisans Mezunu"))                            # alakasız kadro
+
+    def test_herhangi_lisans_govdede(self):
+        govde = "Başvuru şartları: Herhangi bir lisans programından mezun olmak. KPSS P3 puanı en az 60. " * 3
+        self.assertEqual(sev("Bakanlık 20 sözleşmeli personel alacak", govde), "lisans")
+
+    def test_muhendis_oncelikli(self):
+        # Hem mühendis hem herhangi lisans geçiyorsa mühendis ilanı olarak sınıflanır
+        self.assertEqual(sev("Belediye KPSS ile mühendis alacak, diğer kadrolara herhangi bir lisans mezunu"), "olasi")
+
+
 class Gercekler(unittest.TestCase):
     def g(self, metin):
         return a.gercekler(metin, a.fold(metin))

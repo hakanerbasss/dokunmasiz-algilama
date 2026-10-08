@@ -59,7 +59,7 @@ class RssSayfa(unittest.TestCase):
         self.assertFalse([u for u in urls if u.endswith("#")])            # '#' bağlantıları atlanır
 
 
-class Akis(unittest.TestCase):
+class Taban(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.kok = Path(self.tmp.name)
@@ -68,11 +68,15 @@ class Akis(unittest.TestCase):
         self.veri = self.kok / "data"
         self.bildirimler = []
         self.sayfalar = {}
+        self.api = {}            # guid -> liste (başarı) ya da Exception (erişilemedi)
+        self.api_cagri = []
         self.yamalar = [
             mock.patch.object(tara, "KLASOR", self.kok / "ayar"),
             mock.patch.object(tara, "VERI", self.veri),
             mock.patch.object(tara, "indir", side_effect=self._indir),
             mock.patch.object(tara, "ntfy_gonder", side_effect=lambda *a, **k: self.bildirimler.append((a, k))),
+            mock.patch.object(tara, "api_post", side_effect=self._api),
+            mock.patch.object(tara.time, "sleep", return_value=None),
             mock.patch.dict(os.environ, {"NTFY_TOPIC": "deneme-konu-12345", "GITHUB_REPOSITORY": "ben/depo"}, clear=False),
         ]
         for y in self.yamalar:
@@ -92,9 +96,19 @@ class Akis(unittest.TestCase):
             raise RuntimeError("erişilemedi: " + url)
         return self.sayfalar[url], "text/xml", "utf-8"
 
+    def _api(self, url, nesne, **kw):
+        self.api_cagri.append(nesne["ilanGuid"])
+        sonuc = self.api.get(nesne["ilanGuid"], RuntimeError("API kapalı"))
+        if isinstance(sonuc, Exception):
+            raise sonuc
+        return sonuc
+
     def ilanlar(self):
         return json.loads((self.veri / "ilanlar.json").read_text(encoding="utf-8"))
 
+
+
+class Akis(Taban):
     def test_ilk_calisma_ozet_bildirir(self):
         self.sayfalar["https://haber.test/feed"] = rss(
             ("Kocaeli Üniversitesi mühendis alacak, KPSS şartı", "https://haber.test/1", ""),
@@ -186,6 +200,135 @@ class Akis(unittest.TestCase):
         self.sayfalar["https://kurum.test/"] = SAYFA
         tara.calistir(kuru=True)
         self.assertFalse(self.veri.exists())
+        self.assertEqual(self.bildirimler, [])
+
+
+GUID_A = "11111111-1111-1111-1111-111111111111"
+GUID_B = "22222222-2222-2222-2222-222222222222"
+GUID_C = "33333333-3333-3333-3333-333333333333"
+API_BIO = [
+    {"ilanBaslik": "Mühendis (Biyomedikal)", "unvan": "Mühendis",
+     "ilanMetni": "[b]Aranan nitelikler[/b]\nBiyomedikal Mühendisliği lisans mezunu olmak.\n2026 KPSS (B) P3 puanından en az 60 puan.",
+     "kontenjanList": [{"il": "Kocaeli", "kontenjan": 1}], "degerlemeAsamaList": []},
+    {"ilanBaslik": "Büro Personeli", "unvan": "Büro Personeli", "ilanMetni": "Lise mezunu olmak.",
+     "kontenjanList": [{"il": "Van", "kontenjan": 2}], "degerlemeAsamaList": []},
+]
+API_SIRADAN = [{"ilanBaslik": "Hemşire", "unvan": "Hemşire", "ilanMetni": "Sağlık meslek lisesi mezunu. " * 40,
+                "kontenjanList": [{"il": "Ankara", "kontenjan": 3}], "degerlemeAsamaList": []}]
+
+
+def kk_rss(*ogeler):
+    govde = "".join(
+        f'<item><guid isPermaLink="true">https://kariyerkapisi.gov.tr/IlanDetay?i={g}</guid>'
+        f"<link>https://kariyerkapisi.gov.tr/IlanDetay?i={g}</link><category>Sözleşmeli Personel İlanları</category>"
+        f"<title>{b}</title><pubDate>{format_datetime(dt.datetime.now(dt.timezone.utc))}</pubDate></item>"
+        for b, g in ogeler)
+    return f'<?xml version="1.0" encoding="utf-8"?><rss version="2.0"><channel><title>KK</title>{govde}</channel></rss>'.encode("utf-8")
+
+
+class Kategoriler(Taban):
+    """Üç ayrı liste ve resmî Kariyer Kapısı akışı."""
+
+    KK = "https://kariyerkapisi.gov.tr/RSS"
+
+    def setUp(self):
+        super().setUp()
+        self.ayar({**AYAR, "kaynaklar": [{"ad": "Kariyer Kapısı (resmî RSS)", "tur": "rss", "url": self.KK, "resmi": True},
+                                         {"ad": "Deneme RSS", "tur": "rss", "url": "https://haber.test/feed"}]})
+        self.sayfalar["https://haber.test/feed"] = rss(("Jaguar yeni model tanıttı", "https://haber.test/0", ""))
+        self.sayfalar[self.KK] = kk_rss()
+        tara.calistir()                      # "ilk çalışma" bitsin; sonraki çalışmalar tekil bildirim gönderir
+        self.bildirimler.clear()
+        self.api_cagri.clear()
+
+    def test_kk_govde_metni(self):
+        self.api[GUID_A] = API_BIO
+        metin = tara.kk_govde(GUID_A)
+        self.assertTrue(metin.startswith("Pozisyonlar:\nMühendis - Mühendis (Biyomedikal) [Kocaeli (1)]"))
+        self.assertIn("Biyomedikal Mühendisliği lisans mezunu", metin)
+        self.assertNotIn("[b]", metin)
+
+    def test_kk_biyomedikal_pozisyon_bulunur_ve_bildirilir(self):
+        self.api[GUID_A] = API_BIO
+        self.sayfalar[self.KK] = kk_rss(("KOCAELİ ÜNİVERSİTESİ REKTÖRLÜĞÜ - SÖZLEŞMELİ PERSONEL ALIM İLANI", GUID_A))
+        tara.calistir()
+        ilan = [i for i in self.ilanlar()["ilanlar"] if i["id"] == tara.kisa_id(f"https://kariyerkapisi.gov.tr/IlanDetay?i={GUID_A}")][0]
+        self.assertEqual(ilan["seviye"], "guclu")
+        self.assertTrue(ilan["ayrinti"])
+        self.assertEqual(ilan["gercekler"]["puan_turleri"], {"P3": 60.0})
+        self.assertEqual(ilan["gercekler"]["kpss_durum"], "var")
+        self.assertEqual(len(self.bildirimler), 1)
+        self.assertEqual(self.bildirimler[0][0][1], "🔥 Biyomedikal ilanı (KPSS'li)")
+        durum = {k["ad"]: k["tamam"] for k in self.ilanlar()["kaynaklar"]}
+        self.assertTrue(durum[tara.KK_DURUM_AD])
+
+    def test_kk_siradan_ilan_ayrintiya_bakilinca_elenir(self):
+        self.api[GUID_B] = API_SIRADAN
+        self.sayfalar[self.KK] = kk_rss(("ANKARA ÜNİVERSİTESİ REKTÖRLÜĞÜ - SÖZLEŞMELİ PERSONEL ALIM İLANI", GUID_B))
+        tara.calistir()
+        self.assertEqual([i for i in self.ilanlar()["ilanlar"] if "ANKARA" in i["baslik"]], [])
+        self.assertEqual(self.bildirimler, [])
+
+    def test_kk_api_kapaliysa_baslikla_sinifla_sonra_yeniden_dene(self):
+        self.sayfalar[self.KK] = kk_rss(("KOCAELİ ÜNİVERSİTESİ REKTÖRLÜĞÜ - SÖZLEŞMELİ PERSONEL ALIM İLANI", GUID_A))
+        tara.calistir()                                                      # API kapalı
+        d = self.ilanlar()
+        ilan = [i for i in d["ilanlar"] if "KOCAELİ" in i["baslik"]][0]
+        self.assertEqual((ilan["seviye"], ilan["ayrinti"]), ("toplu", False))
+        self.assertFalse({k["ad"]: k["tamam"] for k in d["kaynaklar"]}[tara.KK_DURUM_AD])
+        self.assertEqual(self.bildirimler, [])
+        self.api[GUID_A] = API_BIO                                           # API açıldı: aynı ilan yükselir
+        tara.calistir()
+        ilan = [i for i in self.ilanlar()["ilanlar"] if "KOCAELİ" in i["baslik"]][0]
+        self.assertEqual((ilan["seviye"], ilan["ayrinti"]), ("guclu", True))
+        self.assertEqual(len(self.bildirimler), 1)
+        self.assertEqual(len([i for i in self.ilanlar()["ilanlar"] if "KOCAELİ" in i["baslik"]]), 1)   # çoğalmaz
+        self.assertTrue({k["ad"]: k["tamam"] for k in self.ilanlar()["kaynaklar"]}[tara.KK_DURUM_AD])
+
+    def test_kk_iki_hatadan_sonra_denemeyi_birakir(self):
+        self.sayfalar[self.KK] = kk_rss(("A ÜNİVERSİTESİ - SÖZLEŞMELİ PERSONEL ALIM İLANI", GUID_A),
+                                        ("B ÜNİVERSİTESİ - SÖZLEŞMELİ PERSONEL ALIM İLANI", GUID_B),
+                                        ("C ÜNİVERSİTESİ - SÖZLEŞMELİ PERSONEL ALIM İLANI", GUID_C))
+        tara.calistir()
+        self.assertEqual(len(self.api_cagri), 2)
+
+    def test_kk_durum_sonraki_calismada_korunur(self):
+        self.sayfalar[self.KK] = kk_rss(("KOCAELİ ÜNİVERSİTESİ - SÖZLEŞMELİ PERSONEL ALIM İLANI", GUID_A))
+        tara.calistir()
+        once = self.ilanlar()["kaynaklar"]
+        tara.calistir()                      # yeni ilan yok, yeniden deneme API'yi çağırır ve yine hata alır
+        self.assertEqual(self.ilanlar()["kaynaklar"], once)
+
+    def test_kpsssiz_biyomedikal_ayri_baslikla_bildirilir(self):
+        self.sayfalar["https://haber.test/feed"] = rss(
+            ("Hastane KPSS'siz sözleşmeli biyomedikal mühendisi alacak", "https://haber.test/20", ""),
+            ("Üniversite KPSS ile sözleşmeli biyomedikal mühendisi alacak", "https://haber.test/21", ""))
+        tara.calistir()
+        basliklar = sorted(a[1] for a, _ in self.bildirimler)
+        self.assertEqual(basliklar, ["🔥 Biyomedikal ilanı (KPSS'li)", "🔥 Biyomedikal ilanı (KPSS'siz)"])
+
+    def test_kpsssiz_genel_muhendis_bildirilmez_ama_listelenir(self):
+        self.sayfalar["https://haber.test/feed"] = rss(("Savunma firması KPSS'siz mühendis alacak, kamu ortaklığı", "https://haber.test/22", ""))
+        tara.calistir()
+        self.assertEqual(self.bildirimler, [])
+        self.assertTrue([i for i in self.ilanlar()["ilanlar"] if i["seviye"] == "olasi"])
+
+    def test_herhangi_lisans_dusuk_oncelikle_bildirilir(self):
+        self.sayfalar["https://haber.test/feed"] = rss(
+            ("DHMİ 12 Personel Alımı Yapacak! Herhangi Bir Lisans Mezununa Memur Kadrosu Açıldı", "https://haber.test/23", ""))
+        tara.calistir()
+        (konu, baslik, mesaj), kw = self.bildirimler[0]
+        self.assertEqual(baslik, "📄 Herhangi lisans · KPSS'li alım")
+        self.assertEqual(kw["oncelik"], 2)
+        self.assertEqual([i["seviye"] for i in self.ilanlar()["ilanlar"] if "DHMİ" in i["baslik"]], ["lisans"])
+
+    def test_bildirim_seviyeleri_ayardan_degisir(self):
+        self.ayar({**AYAR, "bildirim_seviyeleri": ["guclu"],
+                   "kaynaklar": [{"ad": "Deneme RSS", "tur": "rss", "url": "https://haber.test/feed"}]})
+        self.sayfalar["https://haber.test/feed"] = rss(
+            ("DHMİ 12 Personel Alımı Yapacak! Herhangi Bir Lisans Mezununa Memur Kadrosu Açıldı", "https://haber.test/23", ""),
+            ("Belediye mühendis alacak, KPSS", "https://haber.test/24", ""))
+        tara.calistir()
         self.assertEqual(self.bildirimler, [])
 
 

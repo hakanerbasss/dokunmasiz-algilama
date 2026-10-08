@@ -25,16 +25,22 @@ Bu yüzden taramayı GitHub'ın zamanlayıcısı yapar, sayfa sadece sonucu gös
 
 ## Ne bulur, nasıl eler?
 
-Her ilan şu seviyelerden birine konur:
+Sayfada ilanlar **ayrı sekmelerde** durur, birbirine karışmaz:
 
-| Seviye | Anlamı | Bildirim |
+| Sekme | Anlamı | Bildirim |
 |---|---|---|
-| 🔥 Biyomedikal | Başlık ya da metinde biyomedikal / tıp mühendisliği geçiyor | evet |
-| ⚙️ Mühendis | Kamu mühendis ilanı, bölüm kısıtı görünmüyor | evet |
-| ▫️ Düşük ihtimal | Mühendis ilanı ama bölüm listesinde biyomedikal yok | hayır |
+| 🔥 Biyomedikal · KPSS'li | Biyomedikal / tıp mühendisliği kadrosu, KPSS'li (sözleşmeli ya da kadrolu) | evet (yüksek öncelik) |
+| 🔥 Biyomedikal · KPSS'siz | Aynısı ama "KPSS'siz", "KPSS şartı aranmaz" gibi ifadeyle | evet (yüksek öncelik) |
+| 📄 Herhangi lisans | "Herhangi bir lisans mezunu" alımları, **KPSS'li** olanlar (bölüm şartı yok) | evet (düşük öncelik) |
+| ⚙️ Mühendis | Kamu mühendis ilanı, bölüm kısıtı görünmüyor | evet (KPSS'siz olanlar hariç) |
 | 📋 Toplu alım | Kurum toplu personel alıyor; kadro listesinde mühendis var mı elle bak | hayır |
+| Elenenler | Aşağıdaki şartlardan biri tutmadı, nedeniyle birlikte görünür | hayır |
+| Düşük ihtimal | Mühendis ilanı ama bölüm listesinde biyomedikal yok | hayır |
 
-Sonra şu şartlarla **elenir** (sayfada *Elenenler* sekmesinde nedeniyle birlikte görünür):
+Hangi sekmelerden bildirim geleceği `scraper/ayar.json` içindeki `bildirim_seviyeleri` ile değişir
+(`guclu`, `olasi`, `lisans`).
+
+**Elenme şartları** (KPSS'siz ilanlarda KPSS şartları uygulanmaz, yaş ve il uygulanır):
 
 - **KPSS yılı:** Yalnızca 2026 puanın var; "2024 KPSS esas alınır" diyen ilanlar elenir.
 - **Puan türü ve asgari puan:** ilan "KPSSP3 en az 70" derse ve puanın düşükse elenir. İlan P93/P94 gibi başka düzeylerin
@@ -50,14 +56,20 @@ Tüm bu ayarlar `scraper/ayar.json` içindedir (iller, yıl, bitiş tarihi, aram
 
 | Kaynak | Ne verir |
 |---|---|
+| **Kariyer Kapısı** (`kariyerkapisi.gov.tr/RSS`) | Resmî kamu ilanları. RSS yalnızca başlık verir; sitenin kendi herkese açık API'si de çağrılarak pozisyon listesi ve KPSS şartları okunur. |
 | Google Haberler (10 sorgu, son 30 gün) | Haber başlıkları. Gövde okunamaz; başlıktan sınıflanır. |
 | İşin Olsa RSS | Kamu ilanı haberleri **tam metinle** (kadro listesi dahil) |
-| ÖSYM duyuruları | KPSS merkezi yerleştirme (tercih) kılavuzu yayımlanınca haber verir |
+| ÖSYM duyuruları | KPSS merkezi yerleştirme (tercih) kılavuzu yayımlanınca haber vermesi beklenir |
 | TİTCK duyuruları | Kurumun kendi personel ilanları |
-| Kariyer Kapısı, ilan.gov.tr (deneysel) | Resmî ilan siteleri. Bu siteler JavaScript ile çizilebilir ve yurt dışı sunuculardan açılmayabilir; çalışıp çalışmadığı sayfadaki *Kaynak sağlığı* bölümünde görünür. |
 
-> Kariyer Kapısı ve ilan.gov.tr'ye kodu yazarken kullandığım ortamdan ulaşamadım (bağlantı reddedildi). Bu yüzden bu iki kaynağı
-> test edemedim. Resmî ilanları yine de sayfadaki *Elle kontrol et* bağlantılarından haftada bir gözden geçir.
+Kaynakların çalışıp çalışmadığı sayfadaki *Kaynak sağlığı* bölümünde görünür.
+
+> **Kariyer Kapısı ayrıntı API'si:** İlan metni siteye görsel/JavaScript ile gelir; ayrıntılar `api.kariyerkapisi.gov.tr`
+> üzerinden okunur. Bu adrese kodu yazdığım ortamdan ulaşamadım (bağlantı kesiliyor), bu yüzden yalnızca GitHub'da
+> çalışıp çalışmadığına bakılabilir. Ulaşılamazsa ilanlar **yalnızca başlıkla** "Toplu alım" sekmesine düşer
+> ("Ayrıntı alınamadı" etiketiyle) ve her taramada yeniden denenir; ulaşılınca doğru sekmeye taşınır ve bildirim gelir.
+> `ilan.gov.tr` sertifika zinciri eksik olduğu için doğrulanamıyor; Resmî Gazete'ye erişilemedi. İkisi için
+> sayfadaki *Elle kontrol et* bağlantılarını kullan.
 
 ## Gizlilik
 

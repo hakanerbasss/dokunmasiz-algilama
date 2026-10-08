@@ -15,6 +15,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -35,6 +36,11 @@ GORULEN_GUN = 500          # görülen kimliklerin saklanma süresi
 BILDIRIM_GUN = 30          # bundan eski ilanlar için bildirim gönderme
 KEEPALIVE_GUN = 10         # değişiklik olmasa da bu sürede bir kayıt yaz (Actions'ı canlı tutar)
 DETAY_SINIRI = 12          # çalıştırma başına en çok kaç ilan sayfası açılsın
+KK_API = "https://api.kariyerkapisi.gov.tr/api"
+KK_ILAN = re.compile(r"^https://kariyerkapisi\.gov\.tr/IlanDetay\?i=([0-9a-fA-F-]{36})$")
+KK_DURUM_AD = "Kariyer Kapısı ilan ayrıntıları (API)"
+KK_TEKRAR_GUN = 21         # ayrıntısı alınamayan resmî ilanlar için yeniden deneme süresi
+VARSAYILAN_BILDIRIM = ("guclu", "olasi", "lisans")
 
 
 # ---------------------------------------------------------------- ağ ve ayrıştırma
@@ -120,7 +126,7 @@ def rss_oku(veri, ad, gnews=False):
         ogeler.append({
             "id": (it.findtext("guid") or url).strip() if gnews else kisa_id(url),
             "baslik": analiz.temiz_baslik(baslik) if gnews else baslik,
-            "url": url, "govde": govde, "kaynak": ad,
+            "url": url, "govde": govde, "kaynak": ad, "kategori": (it.findtext("category") or "").strip(),
             "tarih": tarih_iso(it.findtext("pubDate")),
         })
     return ogeler
@@ -168,9 +174,69 @@ def govde_getir(url):
         veri, tur, kodlama = indir(url, zaman_asimi=20, tekrar=1)
         if "html" not in tur.lower():
             return ""
-        return analiz.govde_temizle(html_coz(veri.decode(kodlama, "replace"))[0])[:12000]
+        return analiz.govde_temizle(html_coz(veri.decode(kodlama, "replace"))[0])[:analiz.GOVDE_SINIRI]
     except Exception:  # noqa: BLE001
         return ""
+
+
+# ---------------------------------------------------------------- Kariyer Kapısı (resmî ilan platformu)
+# RSS yalnızca başlık verir (ilanın metni görsel/JS ile gelir). Sitenin kendi herkese açık API'si
+# (ilan sayfasındaki script'in çağırdığı uç nokta) pozisyon listesini, ilan metnini ve kontenjanı verir.
+def kk_guid(url):
+    m = KK_ILAN.match(url or "")
+    return m.group(1) if m else None
+
+
+def api_post(url, nesne, zaman_asimi=15):
+    istek = urllib.request.Request(
+        url, data=json.dumps(nesne).encode("utf-8"), method="POST",
+        headers={"User-Agent": UA, "Content-Type": "application/json", "Accept": "application/json",
+                 "Origin": "https://kariyerkapisi.gov.tr", "Referer": "https://kariyerkapisi.gov.tr/"})
+    with urllib.request.urlopen(istek, timeout=zaman_asimi) as r:
+        if r.status == 204:
+            return None
+        return json.loads(r.read(3_000_000).decode("utf-8", "replace"))
+
+
+def bbcode_temizle(s):
+    return re.sub(r"\[/?[A-Za-z*]+(?:=[^\]]*)?\]", " ", s or "")
+
+
+def kk_govde(guid):
+    """Bir resmî ilanın pozisyonlarını düz metne çevirir. Önce kısa kadro listesi, sonra ayrıntılar
+    (çözümleme metnin başını okuduğu için "Mühendis (Biyomedikal)" gibi satırlar kesilmez)."""
+    veri = api_post(f"{KK_API}/altilan/GetAltIlanInfoByIlanIdPublic", {"ilanGuid": guid})
+    if not veri:
+        return ""
+    liste, ayrinti = [], []
+    for a in veri:
+        kont = ", ".join(f"{k.get('il')} ({k.get('kontenjan')})" for k in a.get("kontenjanList") or [])
+        liste.append(f"{a.get('unvan') or ''} - {a.get('ilanBaslik') or ''}" + (f" [{kont}]" if kont else ""))
+        ayrinti.append(f"{a.get('unvan') or ''} - {a.get('ilanBaslik') or ''}\n{bbcode_temizle(a.get('ilanMetni'))}")
+    return ("Pozisyonlar:\n" + "\n".join(liste) + "\n\n" + "\n\n".join(ayrinti))[:analiz.GOVDE_SINIRI]
+
+
+class KkApi:
+    """İki ardışık hatada o çalıştırma için denemeyi bırakır (API engelliyse dakikalarca beklemeyelim)."""
+
+    def __init__(self):
+        self.deneme = self.basari = self.ardisik = 0
+
+    def getir(self, guid):
+        """-> metin (başarı; ayrıntı yoksa boş) ya da None (erişilemedi)."""
+        if self.ardisik >= 2:
+            return None
+        self.deneme += 1
+        try:
+            metin = kk_govde(guid)
+        except Exception as e:  # noqa: BLE001
+            self.ardisik += 1
+            print(f"   KK ayrıntı hatası: {str(e)[:120]}")
+            return None
+        self.basari += 1
+        self.ardisik = 0
+        time.sleep(0.3)          # siteye nazik davran
+        return metin
 
 
 # ---------------------------------------------------------------- bildirim
@@ -190,6 +256,8 @@ def ozet(ilan, ayar):
     if g["iller"]:
         isaret = lambda il: "★" + il if il in ayar["tercih_iller"] else il  # noqa: E731
         parcalar.append("📍 " + ", ".join(isaret(i) for i in g["iller"][:5]))
+    if g.get("kpss_durum") == "yok":
+        parcalar.append("KPSS'siz")
     for tur, mn in g["puan_turleri"].items():
         parcalar.append(f"KPSS{tur}" + (f" ≥ {mn:g}" if mn else ""))
     if g["yas_siniri"]:
@@ -197,19 +265,30 @@ def ozet(ilan, ayar):
     return " · ".join(parcalar)
 
 
+EMOJI = {"guclu": "🔥", "olasi": "⚙️", "lisans": "📄"}
+
+
+def bildirim_basligi(i):
+    kd = i["gercekler"].get("kpss_durum")
+    if i["seviye"] == "guclu":
+        return "🔥 Biyomedikal ilanı" + (" (KPSS'siz)" if kd == "yok" else " (KPSS'li)" if kd in ("var", "karma") else "")
+    if i["seviye"] == "lisans":
+        return "📄 Herhangi lisans · KPSS'li alım"
+    return "⚙️ Mühendis ilanı"
+
+
 def bildir(konu, yeniler, ayar, sayfa_url, ilk):
     if not yeniler:
         return
     if ilk or len(yeniler) > 5:
-        satirlar = [("🔥 " if i["seviye"] == "guclu" else "⚙️ ") + i["baslik"][:90] for i in yeniler[:8]]
+        satirlar = [EMOJI.get(i["seviye"], "•") + " " + i["baslik"][:90] for i in yeniler[:8]]
         baslik = f"Takip başladı: {len(yeniler)} uygun ilan" if ilk else f"{len(yeniler)} yeni uygun ilan"
         ntfy_gonder(konu, baslik, "\n".join(satirlar) + f"\n\nTümü: {sayfa_url}", tikla=sayfa_url, oncelik=3, etiketler=["briefcase"])
         return
     for i in yeniler:
-        guclu = i["seviye"] == "guclu"
-        ntfy_gonder(konu, ("🔥 Biyomedikal ilanı" if guclu else "⚙️ Mühendis ilanı"),
-                    f"{i['baslik']}\n{ozet(i, ayar)}".strip(), tikla=i["url"],
-                    oncelik=4 if guclu else 3, etiketler=["dart" if guclu else "gear"])
+        oncelik, etiket = {"guclu": (4, "dart"), "olasi": (3, "gear"), "lisans": (2, "page_facing_up")}.get(i["seviye"], (3, "gear"))
+        ntfy_gonder(konu, bildirim_basligi(i), f"{i['baslik']}\n{ozet(i, ayar)}".strip(), tikla=i["url"],
+                    oncelik=oncelik, etiketler=[etiket])
 
 
 # ---------------------------------------------------------------- ana akış
@@ -225,9 +304,11 @@ def yaz_json(yol, veri):
     Path(yol).write_text(json.dumps(veri, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
 
 
-def bildirilebilir(ilan, profil_elemesi, simdi):
-    if ilan["seviye"] not in ("guclu", "olasi") or ilan["elendi"] or profil_elemesi:
+def bildirilebilir(ilan, profil_elemesi, simdi, seviyeler=VARSAYILAN_BILDIRIM):
+    if ilan["seviye"] not in seviyeler or ilan["elendi"] or profil_elemesi:
         return False
+    if ilan["seviye"] == "olasi" and ilan["gercekler"].get("kpss_durum") == "yok":
+        return False        # KPSS'siz genel mühendis ilanı: listede görünür, bildirim gelmez
     if ilan["tarih"]:
         yas = simdi - dt.datetime.strptime(ilan["tarih"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
         if yas.days > BILDIRIM_GUN:
@@ -283,30 +364,73 @@ def calistir(kuru=False, sifirla=False):
     # 2) çözümle
     onceki = oku_json(VERI / "ilanlar.json", {})
     ilanlar = [] if sifirla else list(onceki.get("ilanlar", []))
+    seviyeler = tuple(ayar.get("bildirim_seviyeleri", VARSAYILAN_BILDIRIM))
     tk_gorulen = {k for k in gorulen if k.startswith("t:")}
-    yeniler, detay = [], 0
+    yeniler, detay, kk = [], 0, KkApi()
+
+    def kaydet(o, govde, ayrinti, ilk_gorulme):
+        d = analiz.degerlendir(o["baslik"], govde, ayar, profil, yil=bugun.year, resmi=o.get("resmi", False))
+        if d is None:
+            return None, None
+        ilan = {"id": o["id"], "baslik": o["baslik"], "url": o["url"], "kaynak": o["kaynak"], "tarih": o["tarih"],
+                "ilk_gorulme": ilk_gorulme, "seviye": d["seviye"], "nedenler": d["nedenler"],
+                "gercekler": d["gercekler"], "elendi": d["elendi"]}
+        if ayrinti is not None:
+            ilan["ayrinti"] = ayrinti       # False: resmî ilanın ayrıntısı henüz alınamadı, yeniden denenecek
+        return ilan, d
+
+    simdi_s = simdi.strftime("%Y-%m-%dT%H:%M:%SZ")
     for o in adaylar:
         tk = "t:" + kisa_id(analiz.fold(o["baslik"])[:90])
         if o["id"] in gorulen or tk in tk_gorulen:
             continue
         gorulen[o["id"]] = gorulen[tk] = bugun.isoformat()
         tk_gorulen.add(tk)
-        resmi = o.get("resmi", False)
-        if analiz.sinifla(o["baslik"], o["govde"], resmi) is None:
+        if analiz.sinifla(o["baslik"], o["govde"], o.get("resmi", False)) is None:
             continue
-        govde = o["govde"]
-        if not govde and "news.google.com" not in o["url"] and detay < DETAY_SINIRI:
+        govde, ayrinti = o["govde"], None
+        guid = kk_guid(o["url"])
+        if guid:
+            metin = kk.getir(guid)
+            ayrinti = metin is not None
+            govde = (metin or "") + "\n" + o.get("kategori", "")
+        elif not govde and "news.google.com" not in o["url"] and detay < DETAY_SINIRI:
             govde, detay = govde_getir(o["url"]), detay + 1
-        d = analiz.degerlendir(o["baslik"], govde, ayar, profil, yil=bugun.year, resmi=resmi)
-        if d is None:
+        ilan, d = kaydet(o, govde, ayrinti, simdi_s)
+        if ilan is None:
             continue
-        ilan = {"id": o["id"], "baslik": o["baslik"], "url": o["url"], "kaynak": o["kaynak"], "tarih": o["tarih"],
-                "ilk_gorulme": simdi.strftime("%Y-%m-%dT%H:%M:%SZ"), "seviye": d["seviye"],
-                "nedenler": d["nedenler"], "gercekler": d["gercekler"], "elendi": d["elendi"]}
         ilanlar.append(ilan)
         print(f"  + [{d['seviye']:6}] {o['baslik'][:100]}" + (f"   (eleme: {'; '.join(d['elendi'] + d['elendi_profil'])})" if d["elendi"] or d["elendi_profil"] else ""))
-        if bildirilebilir(ilan, d["elendi_profil"], simdi):
+        if bildirilebilir(ilan, d["elendi_profil"], simdi, seviyeler):
             yeniler.append(ilan)
+
+    # Ayrıntısı alınamamış resmî ilanları yeniden dene (API geçici olarak kapalı olabilir).
+    sinir_tekrar = (bugun - dt.timedelta(days=KK_TEKRAR_GUN)).isoformat()
+    guncel = []
+    for ilan in ilanlar:
+        guid = kk_guid(ilan["url"])
+        if guid and ilan.get("ayrinti") is False and ilan["ilk_gorulme"][:10] >= sinir_tekrar:
+            metin = kk.getir(guid)
+            if metin is not None:
+                o = {k: ilan[k] for k in ("id", "baslik", "url", "kaynak", "tarih")}
+                o["resmi"] = True
+                yeni_ilan, d = kaydet(o, metin, True, ilan["ilk_gorulme"])
+                if yeni_ilan is None:
+                    print(f"  - ayrıntı okundu, ilgisiz çıktı: {ilan['baslik'][:90]}")
+                    continue
+                print(f"  ~ [{d['seviye']:6}] ayrıntı alındı: {ilan['baslik'][:90]}")
+                ilan = yeni_ilan
+                if bildirilebilir(ilan, d["elendi_profil"], simdi, seviyeler):
+                    yeniler.append(ilan)
+        guncel.append(ilan)
+    ilanlar = guncel
+
+    if kk.deneme:
+        kaynak_durumlari.append({"ad": KK_DURUM_AD, "tamam": kk.basari > 0, "hata": "" if kk.basari else "erişilemedi"})
+    else:
+        eski = next((k for k in onceki.get("kaynaklar", []) if k.get("ad") == KK_DURUM_AD), None)
+        if eski:
+            kaynak_durumlari.append(eski)
 
     ilanlar.sort(key=lambda i: (i["ilk_gorulme"], i["tarih"] or ""), reverse=True)
     ilanlar = ilanlar[:ILAN_SINIRI]
@@ -328,7 +452,7 @@ def calistir(kuru=False, sifirla=False):
         yaz_json(VERI / "durum.json", durum)
 
     # 4) bildir
-    print(f"Yeni ilan: {len([i for i in ilanlar if i['ilk_gorulme'] == simdi.strftime('%Y-%m-%dT%H:%M:%SZ')])}, bildirilecek: {len(yeniler)}")
+    print(f"Yeni ilan: {len([i for i in ilanlar if i['ilk_gorulme'] == simdi_s])}, bildirilecek: {len(yeniler)}")
     if konu and not kuru:
         try:
             bildir(konu, yeniler, ayar, sayfa_url, ilk)

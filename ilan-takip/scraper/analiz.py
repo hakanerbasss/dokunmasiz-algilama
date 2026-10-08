@@ -5,6 +5,8 @@ olup olmadığı sınıflanır ve KPSS puanı / yaş sınırı / il gibi "gerçe
 """
 import re
 
+GOVDE_SINIRI = 30000   # bir ilanın en çok bu kadar karakteri çözümlenir
+
 _TR = str.maketrans("çğıöşüâîûÇĞİÖŞÜÂÎÛ", "cgiosuaiuCGIOSUAIU")
 
 
@@ -37,8 +39,15 @@ PUBLIC = re.compile(r"kpss|kamu|bakanlig|universite|rektorlug|belediye|baskanlig
 SONUC = re.compile(r"\bsonuc|resmi gazete karar")
 TAHMIN = re.compile(r"ne zaman|\bmi\b|\bmu\b|\?|nasil|nereden|tarihi belli|bekleniyor|gundemi")
 TOPLU_HARIC = re.compile(r"akademik|ogretim uyesi|ogretim gorevlisi|arastirma gorevlisi|profesor|docent|"
-                         r"kpss\W{0,3}siz|kpss (?:sarti )?olmadan|kpss (?:puani )?(?:olmayan|aranmaz)|"
-                         r"\biskur|\bisci\b")
+                         r"bekci|temizlik|guvenlik gorevlisi|koruma ve guvenlik|itfaiye|zabita|infaz|"
+                         r"jandarma|polis|ogretmen|hemsire|gorevde yukselme|unvan degisikligi|\biskur|\bisci\b")
+# "KPSS'siz", "KPSS şartı aranmaz", "KPSS puanı olmayanlar da başvurabilir" ...
+SIZ = re.compile(r"kpss\W{0,3}siz|kpss\s+(?:sarti\s+|puani\s+)?(?:olmadan|olmayan\w*|aranmaz|aranmamakta\w*|"
+                 r"aranmaksizin|sartsiz|yok)|kpss\s+sart\w*\s+(?:olmadan|aranmaz|aranmamakta\w*|"
+                 r"bulunmamakta\w*|yok)")
+# "Herhangi bir lisans mezunu", "her bölümden", "bölüm şartı aranmaz"
+HERHANGI_LISANS = re.compile(r"herhangi bir (?:\w+ )?(?:on ?)?lisans|herhangi bir (?:fakulte|bolum|program|dal)|"
+                             r"her (?:turlu )?bolum|bolum (?:sarti|siniri|kisiti) (?:aranmaz|aranmay\w*|yok|bulunmaz|bulunmay\w*)|tum lisans")
 HER_BRANS = re.compile(r"tum muhendis|her turlu muhendis|muhendislik fakulteler|ilgili muhendis|"
                        r"muhendislik bolumler|muhendislik alanlar|muhendis \(her|muhendislik programlar")
 
@@ -156,8 +165,19 @@ def branslar(tum):
     return sorted(bulunan)
 
 
+def kpss_durumu(tum):
+    """"yok" (KPSS'siz), "karma" (hem KPSS'li hem KPSS'siz), "var" (KPSS geçiyor) ya da "belirsiz"."""
+    siz = bool(SIZ.search(tum))
+    gerisi = SIZ.sub(" ", tum)
+    var = "kpss" in gerisi
+    if siz and var:
+        return "karma"
+    return "yok" if siz else ("var" if var else "belirsiz")
+
+
 def gercekler(orijinal, tum):
     return {
+        "kpss_durum": kpss_durumu(tum),
         "kpss_yillari": kpss_yillari(tum),
         "puan_turleri": puan_turleri(tum),
         "genel_puanlar": genel_puanlar(tum),
@@ -171,11 +191,12 @@ def gercekler(orijinal, tum):
 def sinifla(baslik, govde="", resmi=False):
     """-> (seviye, nedenler) ya da None (ilgisiz).
 
-    seviye: guclu (biyomedikal geçiyor) | olasi (mühendis ilanı / KPSS kılavuzu) |
+    seviye: guclu (biyomedikal geçiyor; KPSS'li ya da KPSS'siz olduğu gercekler.kpss_durum'dan okunur) |
+            olasi (mühendis ilanı / KPSS kılavuzu) | lisans (herhangi bir lisans mezunu, KPSS'li) |
             dusuk (bölüm listesinde biyomedikal yok) | toplu (toplu alım, kadro listesine bak)
     """
     t = fold(baslik)
-    g = fold(govde[:12000])
+    g = fold(govde[:GOVDE_SINIRI])
     tum = f"{t} {g}".strip()
     nedenler = []
 
@@ -189,11 +210,13 @@ def sinifla(baslik, govde="", resmi=False):
         return None
     if PROC.search(t) and not PROC_ISTISNA.search(t):
         return None
-    if PRIVATE.search(t) and "kpss" not in tum:
-        return None
 
     if BIO.search(t):
-        return "guclu", ["Başlıkta biyomedikal/tıp mühendisliği geçiyor"]
+        # Biyomedikal ilanı özel/yarı kamu kuruluşundan da olsa (özellikle KPSS'siz) gösterilir.
+        ek = ["Özel sektör ilanı olabilir"] if PRIVATE.search(t) else []
+        return "guclu", ["Başlıkta biyomedikal/tıp mühendisliği geçiyor"] + ek
+    if PRIVATE.search(t) and "kpss" not in tum:
+        return None
     if BIO.search(g):
         return "guclu", ["Metinde biyomedikal/tıp mühendisliği kadrosu geçiyor"]
 
@@ -206,12 +229,22 @@ def sinifla(baslik, govde="", resmi=False):
         kaynak = "başlıkta" if MUH.search(t) else "metinde"
         return "olasi", [f"Mühendis ilanı ({kaynak}); bölüm kısıtı görünmüyor"]
 
+    if TAHMIN.search(t) or egitim_elemesi(tum):
+        return None
+
+    if HERHANGI_LISANS.search(t) or HERHANGI_LISANS.search(g):
+        # Bölüm şartı olmayan lisans alımı: biyomedikal mühendisi de başvurabilir. KPSS'siz olanlar
+        # bu kategoriye alınmaz (yalnızca KPSS'li alımlar isteniyor).
+        if kpss_durumu(tum) != "yok" and not TOPLU_HARIC.search(t):
+            return "lisans", ["Herhangi bir lisans mezunu başvurabilir (bölüm şartı yok)"]
+        return None
+
     if g and not MUH.search(g):
         # Gövde okundu ve mühendis hiç geçmiyor: toplu alımda mühendis kadrosu yok demektir.
         if len(g) > 800:
             return None
 
-    if TAHMIN.search(t) or TOPLU_HARIC.search(t) or egitim_elemesi(tum):
+    if TOPLU_HARIC.search(t) or SIZ.search(t):
         return None
     if ILGILI_KURUM.search(tum):
         nedenler.append("Sağlık/tıbbi cihaz ile ilgili kurum: kadro listesinde mühendis olabilir")
@@ -245,8 +278,9 @@ def egitim_elemesi(tum):
 
 def profilsiz_elemeler(baslik, govde, g, ayar):
     """Kişisel bilgi gerektirmeyen kesin elemeler (ilanlar.json'a yazılır)."""
-    tum = fold(baslik + " " + (govde or "")[:12000])
-    return [e for e in (kpss_yili_elemesi(g, ayar), il_elemesi(g, ayar), egitim_elemesi(tum)) if e]
+    tum = fold(baslik + " " + (govde or "")[:GOVDE_SINIRI])
+    kpssiz = g["kpss_durum"] == "yok"        # KPSS istemeyen ilanda KPSS yılı eleme nedeni olamaz
+    return [e for e in (None if kpssiz else kpss_yili_elemesi(g, ayar), il_elemesi(g, ayar), egitim_elemesi(tum)) if e]
 
 
 def profil_elemeleri(g, profil, yil):
@@ -255,7 +289,7 @@ def profil_elemeleri(g, profil, yil):
         return []
     nedenler = []
     puan = profil.get("puanlar") or {}
-    turler = g["puan_turleri"]
+    turler = {} if g["kpss_durum"] == "yok" else g["puan_turleri"]
     if turler and puan:
         # İlan lisans/önlisans/ortaöğretim için ayrı puan türleri sayabilir (P3, P93, P94);
         # yalnızca sahip olduklarımıza bakılır.
@@ -278,8 +312,8 @@ def degerlendir(baslik, govde, ayar, profil=None, yil=2026, resmi=False):
     if s is None:
         return None
     seviye, nedenler = s
-    tum = fold(baslik + " " + (govde or "")[:12000])
-    g = gercekler(baslik + " " + (govde or "")[:12000], tum)
+    tum = fold(baslik + " " + (govde or "")[:GOVDE_SINIRI])
+    g = gercekler(baslik + " " + (govde or "")[:GOVDE_SINIRI], tum)
     return {
         "seviye": seviye,
         "nedenler": nedenler,

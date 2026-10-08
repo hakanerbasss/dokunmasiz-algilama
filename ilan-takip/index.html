@@ -103,9 +103,9 @@
   <section id="liste" aria-live="polite"></section>
 
   <details class="kart">
-    <summary>Elle kontrol et (otomatik taranamayanlar)</summary>
+    <summary>Elle kontrol et</summary>
     <div class="ic">
-      <p>Bu resmi siteler çoğunlukla yalnızca Türkiye'den ya da tarayıcıyla açılabiliyor; haftada bir göz at.</p>
+      <p>Kariyer Kapısı resmî yayınından taranır; ilan.gov.tr ve Resmî Gazete otomatik taranamaz. Haftada bir göz atmanda fayda var.</p>
       <ul class="baglar" id="baglar"></ul>
     </div>
   </details>
@@ -176,7 +176,8 @@ function degerlendir(i, p, ayar) {
   const g = i.gercekler || {};
   const red = [...(i.elendi || [])], uyar = [], iyi = [], notr = [], iller = [];
   const puan = profilPuanlar(p), puanVar = Object.keys(puan).length > 0;
-  const turler = Object.entries(g.puan_turleri || {});
+  const kpssiz = g.kpss_durum === "yok";
+  const turler = kpssiz ? [] : Object.entries(g.puan_turleri || {});
   if (turler.length && puanVar) {
     const sahip = turler.filter(([t]) => t in puan);
     if (!sahip.length) red.push(`KPSS${turler.map((x) => x[0]).join("/")} puan türü isteniyor (sende yok)`);
@@ -200,22 +201,31 @@ function degerlendir(i, p, ayar) {
   }
   if ((g.kpss_yillari || []).length && !red.some((r) => /KPSS puanı esas/.test(r))) iyi.push(`KPSS ${g.kpss_yillari.join("/")} ✓`);
   if (g.ehliyet) notr.push("Ehliyet geçiyor");
+  if (g.kpss_durum === "yok") iyi.push("KPSS'siz");
+  if (g.kpss_durum === "karma") notr.push("KPSS'siz de olabilir");
+  if (i.ayrinti === false) uyar.push("Ayrıntı alınamadı — ilanı açıp kadro listesine bak");
   const tercih = new Set(ayar.tercih_iller || []), yakin = new Set(ayar.yakin_iller || []), engel = new Set(ayar.engelli_iller || []);
   for (const il of g.iller || []) iller.push([il, tercih.has(il) ? "iyi" : yakin.has(il) ? "" : engel.has(il) ? "kotu" : ""]);
   return { red, uyar, iyi, notr, iller };
 }
 function kova(i, d) {
   if (d.red.length) return "elenen";
-  if (i.seviye === "toplu") return "toplu";
-  if (i.seviye === "dusuk") return "diger";
-  return "uygun";
+  const kd = (i.gercekler || {}).kpss_durum;
+  switch (i.seviye) {
+    case "guclu": return kd === "yok" ? "biosiz" : "bio";
+    case "lisans": return "lisans";
+    case "olasi": return "muh";
+    case "toplu": return "toplu";
+    default: return "diger";
+  }
 }
 
 // ------------------------------------------------------------------ çizim
-const SEKMELER = [["uygun", "Uygun"], ["toplu", "Toplu alım"], ["elenen", "Elenenler"], ["diger", "Düşük ihtimal"]];
-const SEVIYE = { guclu: "🔥 Biyomedikal", olasi: "⚙️ Mühendis", toplu: "📋 Toplu alım", dusuk: "▫️ Düşük ihtimal" };
-const AGIRLIK = { guclu: 0, olasi: 1, toplu: 2, dusuk: 3 };
-let VERI = null, SEKME = LS.get("sekme", "uygun"), SON_ZIYARET = LS.get("sonZiyaret", 0);
+const SEKMELER = [["bio", "Biyomedikal · KPSS'li"], ["biosiz", "Biyomedikal · KPSS'siz"], ["lisans", "Herhangi lisans"],
+                  ["muh", "Mühendis"], ["toplu", "Toplu alım"], ["elenen", "Elenenler"], ["diger", "Düşük ihtimal"]];
+const SEVIYE = { guclu: "🔥 Biyomedikal", lisans: "📄 Herhangi lisans · KPSS'li", olasi: "⚙️ Mühendis", toplu: "📋 Toplu alım", dusuk: "▫️ Düşük ihtimal" };
+const AGIRLIK = { guclu: 0, olasi: 1, lisans: 2, toplu: 3, dusuk: 4 };
+let VERI = null, SEKME = LS.get("sekme-v2", null), SON_ZIYARET = LS.get("sonZiyaret", 0);
 
 function gore(iso) {
   if (!iso) return "";
@@ -237,7 +247,7 @@ function kartYap(i, d) {
     ...d.red.map((t) => el("span", { class: "cip kotu" }, t)),
   ];
   return el("article", { class: "kart ilan" },
-    el("div", { class: "ust" }, el("span", { class: "seviye" }, SEVIYE[i.seviye] || i.seviye), yeni ? el("span", { class: "yeni" }, "YENİ") : null),
+    el("div", { class: "ust" }, el("span", { class: "seviye" }, (SEVIYE[i.seviye] || i.seviye) + (i.seviye === "guclu" ? ((i.gercekler || {}).kpss_durum === "yok" ? " · KPSS'siz" : " · KPSS'li") : "")), yeni ? el("span", { class: "yeni" }, "YENİ") : null),
     el("h3", null, el("a", { href: guvenliUrl(i.url), target: "_blank", rel: "noopener noreferrer" }, i.baslik)),
     el("div", { class: "meta" }, [i.kaynak.replace(/^Google Haberler: .*/, "Google Haberler"), gore(i.tarih || i.ilk_gorulme)].filter(Boolean).join(" · ")),
     cipler.length ? el("div", { class: "cipler" }, cipler) : null,
@@ -252,18 +262,19 @@ function ciz() {
   const q = fold($("#ara").value).trim();
   const hepsi = (VERI.ilanlar || []).map((i) => ({ i, d: degerlendir(i, p, ayar) })).map((x) => ({ ...x, k: kova(x.i, x.d) }));
   const sayac = Object.fromEntries(SEKMELER.map(([k]) => [k, hepsi.filter((x) => x.k === k).length]));
+  if (!SEKME || !(SEKME in sayac)) SEKME = ["bio", "biosiz", "lisans", "muh"].find((k) => sayac[k]) || "bio";
   const sek = $("#sekmeler");
   sek.replaceChildren(...SEKMELER.map(([k, ad]) => {
     const b = el("button", { type: "button", "aria-pressed": String(k === SEKME) }, ad, el("small", null, sayac[k]));
-    b.addEventListener("click", () => { SEKME = k; LS.set("sekme", k); ciz(); });
+    b.addEventListener("click", () => { SEKME = k; LS.set("sekme-v2", k); ciz(); });
     return b;
   }));
   const secili = hepsi.filter((x) => x.k === SEKME)
     .filter((x) => !q || fold([x.i.baslik, x.i.kaynak, (x.i.gercekler.iller || []).join(" ")].join(" ")).includes(q))
     .sort((a, b) => (AGIRLIK[a.i.seviye] - AGIRLIK[b.i.seviye]) || ((b.i.tarih || b.i.ilk_gorulme) > (a.i.tarih || a.i.ilk_gorulme) ? 1 : -1));
   if (!secili.length) {
-    liste.append(el("div", { class: "bos" }, SEKME === "uygun"
-      ? "Şu an profiline uyan açık ilan yok. Tarama her 3 saatte bir çalışıyor; yeni ilan çıkınca burada görünür (ve bildirim gelir)."
+    liste.append(el("div", { class: "bos" }, ["bio", "biosiz"].includes(SEKME)
+      ? "Şu an bu türde açık ilan yok. Tarama her 3 saatte bir çalışıyor; çıkınca burada görünür ve bildirim gelir."
       : "Bu listede ilan yok."));
     return;
   }
@@ -299,13 +310,13 @@ function durumYaz() {
 
 // ------------------------------------------------------------------ bağlantılar ve kurulum
 const BAGLANTILAR = [
-  ["Kariyer Kapısı (Cumhurbaşkanlığı İK Ofisi)", "https://kariyerkapisi.cbiko.gov.tr/"],
-  ["ilan.gov.tr (Resmî İlan — personel alımı)", "https://www.ilan.gov.tr/"],
+  ["Kariyer Kapısı — kamu iş ilanları (resmî)", "https://kariyerkapisi.gov.tr/"],
+  ["ilan.gov.tr — Resmî İlan (personel alımı)", "https://www.ilan.gov.tr/"],
   ["Resmî Gazete (üniversite ve kurum ilanları)", "https://www.resmigazete.gov.tr/"],
   ["ÖSYM — KPSS duyuruları", "https://www.osym.gov.tr/SinavGrubu/Index/3"],
   ["Sağlık Bakanlığı personel duyuruları", "https://www.saglik.gov.tr/TR-99316/personel-duyurulari.html"],
   ["TİTCK (İlaç ve Tıbbi Cihaz Kurumu)", "https://www.titck.gov.tr/"],
-  ["Google: son 1 haftanın biyomedikal mühendis ilanları", "https://www.google.com/search?q=biyomedikal+m%C3%BChendis+al%C4%B1m%C4%B1+kpss&tbs=qdr:w"],
+  ["Google: son 1 haftanın biyomedikal mühendis ilanları", "https://www.google.com/search?q=biyomedikal+m%C3%BChendis+al%C4%B1m%C4%B1&tbs=qdr:w"],
 ];
 function depoAdi() {
   if (VERI && VERI.depo) return VERI.depo;
