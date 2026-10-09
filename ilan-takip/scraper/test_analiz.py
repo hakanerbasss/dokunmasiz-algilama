@@ -175,6 +175,58 @@ class Izlenen(unittest.TestCase):
         self.assertFalse(d["izlenen"])
 
 
+class Profiller(unittest.TestCase):
+    """Başka bir kişi için profil: tüm belediye ilanları (işçi dahil) ve bölüm/görev anahtarları."""
+    AY = {"kpss_yillari": [2026], "engelli_iller": ["Van"],
+          "profiller": [{"id": "bio", "ad": "Biyomedikal"},
+                        {"id": "ceei", "ad": "Çalışma Ekonomisi ve Endüstri İlişkileri",
+                         "anahtarlar": ["çalışma ekonomisi", "endüstri ilişkileri", "iş müfettişi", "insan kaynakları"]}]}
+
+    def d(self, baslik, govde=""):
+        return a.degerlendir(baslik, govde, self.AY, None, 2026)
+
+    def test_belediye_ilanlari_her_turlusu(self):
+        for b in ["Esenyurt Belediyesi 40 işçi alacak, KPSS şartı yok",
+                  "Beşiktaş Belediyesi temizlik görevlisi alımı yapacak",
+                  "Kocaeli Büyükşehir Belediyesi 25 memur alacak",
+                  "Belediye şirketi 100 personel alacak, lise mezunu"]:
+            self.assertEqual(self.d(b)["seviye"], "belediye", b)
+
+    def test_belediye_ihale_ve_alakasiz_ilgisiz(self):
+        self.assertIsNone(self.d("Belediye ihale ilanı: mal alımı yapılacak"))
+        self.assertIsNone(self.d("Belediye başkanı açıklama yaptı"))
+
+    def test_belediye_gercekleri_tutulur_il_elemesi_istemciye_birakilir(self):
+        d = self.d("Van Büyükşehir Belediyesi 25 memur alacak")
+        self.assertEqual(d["seviye"], "belediye")
+        self.assertIn("İl tercihin dışında: Van", d["elendi"])      # sayfa bunu "tüm iller" profilinde yok sayar
+
+    def test_bolum_ve_gorev_anahtari(self):
+        d = self.d("Çalışma ve Sosyal Güvenlik Bakanlığı 100 iş müfettişi yardımcısı alacak")
+        self.assertEqual((d["seviye"], d["profiller"]), ("profil", ["ceei"]))
+        d = self.d("Bakanlık Çalışma Ekonomisi ve Endüstri İlişkileri mezunu uzman alacak, KPSS")
+        self.assertEqual(d["profiller"], ["ceei"])
+
+    def test_govdede_anahtar_baslikta_personel_baglami_varsa(self):
+        govde = "Başvuru şartları: Çalışma Ekonomisi ve Endüstri İlişkileri lisans programından mezun olmak."
+        d = self.d("Kurum 5 sözleşmeli personel alacak", govde)
+        self.assertEqual(d["profiller"], ["ceei"])
+        self.assertEqual(d["seviye"], "profil")
+
+    def test_belediye_ozel_toplu_alimdan_once_gelir_ama_biyomedikal_ezmez(self):
+        self.assertEqual(self.d("Belediye 20 sözleşmeli personel alacak, KPSS 60 puan")["seviye"], "belediye")
+        self.assertEqual(self.d("Belediye KPSS ile sözleşmeli biyomedikal mühendisi alacak")["seviye"], "guclu")
+        self.assertEqual(self.d("Belediye KPSS ile sözleşmeli mühendis alacak", "Mühendislik fakültesi mezunu." + " x" * 150)["seviye"], "olasi")
+
+    def test_profiller_baska_seviyedeki_ilanda_da_isaretlenir(self):
+        d = self.d("Üniversite 20 sözleşmeli personel alacak", "İnsan kaynakları uzmanı kadrosu var. " + "x " * 20)
+        self.assertEqual(d["profiller"], ["ceei"])
+
+    def test_ayarsiz_profil_yok(self):
+        d = a.degerlendir("Çalışma ekonomisi mezunu personel alınacak, KPSS", "", {"kpss_yillari": [2026], "engelli_iller": []}, None, 2026)
+        self.assertEqual(d["profiller"] if d else [], [])
+
+
 class Gercekler(unittest.TestCase):
     def g(self, metin):
         return a.gercekler(metin, a.fold(metin))

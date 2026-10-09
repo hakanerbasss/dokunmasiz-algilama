@@ -63,6 +63,9 @@
   .cip.uyar { background: var(--uyar-bg); color: var(--uyar); }
   .cip.kotu { background: var(--kotu-bg); color: var(--kotu); }
   .neden { font-size: .8rem; color: var(--soluk); margin-top: 6px; }
+  .profilsec { padding: 10px 14px; display: grid; gap: 8px; }
+  .profilsec label { display: grid; gap: 4px; font-size: .8rem; color: var(--soluk); }
+  select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--cizgi); background: var(--bg); color: var(--yazi); font: inherit; }
   .takvim { padding: 10px 14px; font-size: .88rem; }
   .takvim h2 { font-size: .8rem; margin: 0 0 6px; color: var(--soluk); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
   .takvim .tarih { margin: 4px 0; }
@@ -84,13 +87,24 @@
 <body>
 <header>
   <h1>Kamu İlan Takip</h1>
-  <p class="alt">Biyomedikal mühendisi · KPSS-2026 Lisans · 2 yıllık otomatik tarama</p>
+  <p class="alt" id="altBaslik">Biyomedikal mühendisi · KPSS-2026 Lisans · 2 yıllık otomatik tarama</p>
   <div class="durum" id="durum">Yükleniyor…</div>
 </header>
 
 <main>
+  <section class="kart profilsec">
+    <label>Profil
+      <select id="profilSec" aria-label="Profil seç"></select>
+    </label>
+    <label id="ozelEtiket" hidden>Bölümün ya da aradığın kelimeler (virgülle ayır)
+      <input type="text" id="ozelKelime" placeholder="ör. işletme, iktisat, sosyoloji" autocomplete="off">
+    </label>
+    <div class="meta" id="profilNot"></div>
+    <div class="satir"><button class="dugme ikincil" id="profilLink" type="button">Bu profilin bağlantısını kopyala</button><span class="meta" id="profilLinkDurum"></span></div>
+  </section>
+
   <details class="kart" id="profilKart">
-    <summary>Profilim <span id="profilOzet" class="meta"></span></summary>
+    <summary>Puanlarım <span id="profilOzet" class="meta"></span></summary>
     <div class="ic">
       <p>İlanlar bu bilgilere göre elenir. <b>Yalnızca bu telefonda saklanır</b>, hiçbir yere gönderilmez.</p>
       <div class="form">
@@ -131,6 +145,7 @@
         (ad: <code>PROFIL_JSON</code>):</p>
       <div class="satir"><button class="dugme ikincil" id="profilKopya" type="button">PROFIL_JSON değerini kopyala</button><span class="meta" id="kopyaDurum"></span></div>
       <p class="meta">Depo herkese açık olduğu için puanlarını koda yazmadım. Secret'lar herkese kapalıdır.</p>
+      <p class="meta">Bildirimler tek bir konu adına, yani tek bir telefona gider. Başka biri de kendi telefonuna bildirim istiyorsa ayrı bir konu adı ve ayrı bir ayar gerekir; şimdilik diğer profiller sayfadan bakmak içindir.</p>
     </div>
   </details>
 
@@ -164,8 +179,16 @@ function el(tag, attrs, ...cocuklar) {
 const guvenliUrl = (u) => (/^https?:\/\//i.test(u || "") ? u : "#");
 
 // ------------------------------------------------------------------ profil
-const PROFIL_ANAHTAR = "profil-v1";
-function profil() { return LS.get(PROFIL_ANAHTAR, { p1: "", p2: "", p3: "", dogum: "" }); }
+// Her profilin puanları ayrı saklanır ("bio" eski anahtarı korur); hepsi yalnızca bu telefondadır.
+let AKTIF = LS.get("aktifProfil", "bio");
+const profilAnahtari = () => (AKTIF === "bio" ? "profil-v1" : "profil-v1:" + AKTIF);
+function profil() { return LS.get(profilAnahtari(), { p1: "", p2: "", p3: "", dogum: "" }); }
+function profilListesi() {
+  const liste = ((VERI && VERI.ayar && VERI.ayar.profiller) || [{ id: "bio", ad: "Biyomedikal Mühendisi", kisa: "Biyomedikal" }]).slice();
+  liste.push({ id: "ozel", ad: "Kendi bölümüm (yaz)", kisa: "Bölümüm", tum_iller: true, isci_dahil: true, ozel: true });
+  return liste;
+}
+const aktifProfil = () => profilListesi().find((p) => p.id === AKTIF) || profilListesi()[0];
 function profilPuanlar(p) {
   const o = {};
   for (const t of ["P1", "P2", "P3"]) { const n = sayi(p[t.toLowerCase()]); if (n !== null) o[t] = n; }
@@ -178,9 +201,10 @@ function profilJson(p) {
 
 // ------------------------------------------------------------------ değerlendirme
 // Sunucu "elendi" alanını (yıl, il, düzey) hazır verir; puan ve yaşı burada, kişisel profile göre hesaplarız.
-function degerlendir(i, p, ayar) {
+function degerlendir(i, p, ayar, prof) {
   const g = i.gercekler || {};
-  const red = [...(i.elendi || [])], uyar = [], iyi = [], notr = [], iller = [];
+  let red = [...(i.elendi || [])];
+  const uyar = [], iyi = [], notr = [], iller = [];
   const puan = profilPuanlar(p), puanVar = Object.keys(puan).length > 0;
   const kpssiz = g.kpss_durum === "yok";
   const turler = kpssiz ? [] : Object.entries(g.puan_turleri || {});
@@ -212,27 +236,66 @@ function degerlendir(i, p, ayar) {
   if (i.ayrinti === false) uyar.push("Ayrıntı alınamadı — ilanı açıp kadro listesine bak");
   else if (i.metin_yok && ["guclu", "olasi", "lisans"].includes(i.seviye)) uyar.push("Metin okunamadı — bölüm ve puan şartını ilanda kontrol et");
   const tercih = new Set(ayar.tercih_iller || []), yakin = new Set(ayar.yakin_iller || []), engel = new Set(ayar.engelli_iller || []);
-  for (const il of g.iller || []) iller.push([il, tercih.has(il) ? "iyi" : yakin.has(il) ? "" : engel.has(il) ? "kotu" : ""]);
+  const tumIller = !!(prof && prof.tum_iller);
+  for (const il of g.iller || []) iller.push([il, tumIller ? "" : tercih.has(il) ? "iyi" : yakin.has(il) ? "" : engel.has(il) ? "kotu" : ""]);
+  // Sunucu elemeleri biyomedikal profiline göre (doğu illeri, lise/ön lisans) yapılır; diğer profillerde gevşetilir.
+  if (tumIller) red = red.filter((r) => !/^İl tercihin dışında/.test(r));
+  if (prof && prof.isci_dahil) {
+    const lise = red.filter((r) => /^Lise\/ön lisans düzeyi/.test(r));
+    if (lise.length) {
+      red = red.filter((r) => !lise.includes(r));
+      uyar.push("Lise/ön lisans düzeyi olabilir — işçi ya da KPSS'siz kadro olabilir, ilanı oku");
+    }
+  }
   return { red, uyar, iyi, notr, iller };
+}
+function ozelEslesme(i) {
+  const k = fold(LS.get("ozelKelime", "")).split(",").map((x) => x.trim()).filter((x) => x.length >= 3);
+  if (!k.length) return false;
+  const metin = fold([i.baslik, (i.nedenler || []).join(" ")].join(" "));
+  return k.some((x) => metin.includes(x));
 }
 function kova(i, d) {
   if (d.red.length) return "elenen";
-  const kd = (i.gercekler || {}).kpss_durum;
+  const prof = aktifProfil();
+  if (prof.id === "bio") {
+    const kd = (i.gercekler || {}).kpss_durum;
+    switch (i.seviye) {
+      case "guclu": return kd === "yok" ? "biosiz" : "bio";
+      case "lisans": return "lisans";
+      case "olasi": return "muh";
+      case "toplu": return i.izlenen ? "izlenen" : "toplu";
+      case "belediye": return i.izlenen ? "izlenen" : "belediye";
+      case "profil": return "gizli";          // başka bir profilin bölüm anahtarına uyan ilan
+      default: return "diger";
+    }
+  }
+  if ((i.profiller || []).includes(prof.id) || (prof.ozel && ozelEslesme(i))) return "bolumum";
   switch (i.seviye) {
-    case "guclu": return kd === "yok" ? "biosiz" : "bio";
     case "lisans": return "lisans";
-    case "olasi": return "muh";
-    case "toplu": return i.izlenen ? "izlenen" : "toplu";
-    default: return "diger";
+    case "belediye": return "belediye";
+    case "toplu": return "toplu";
+    default: return "gizli";                  // biyomedikal/mühendis ilanları bu profil için ilgisiz
   }
 }
 
 // ------------------------------------------------------------------ çizim
-const SEKMELER = [["bio", "Biyomedikal · KPSS'li"], ["biosiz", "Biyomedikal · KPSS'siz"], ["lisans", "Herhangi lisans"],
-                  ["muh", "Mühendis"], ["izlenen", "İzlediklerim"], ["toplu", "Toplu alım"], ["elenen", "Elenenler"], ["diger", "Düşük ihtimal"]];
-const SEVIYE = { guclu: "🔥 Biyomedikal", lisans: "📄 Herhangi lisans · KPSS'li", olasi: "⚙️ Mühendis", toplu: "📋 Toplu alım", dusuk: "▫️ Düşük ihtimal" };
-const AGIRLIK = { guclu: 0, olasi: 1, lisans: 2, toplu: 3, dusuk: 4 };
-let VERI = null, SEKME = LS.get("sekme-v2", null), SON_ZIYARET = LS.get("sonZiyaret", 0);
+function sekmeler() {
+  const prof = aktifProfil();
+  if (prof.id === "bio") {
+    return [["bio", "Biyomedikal · KPSS'li"], ["biosiz", "Biyomedikal · KPSS'siz"], ["lisans", "Herhangi lisans"],
+            ["muh", "Mühendis"], ["izlenen", "İzlediklerim"], ["belediye", "Belediye ilanları"],
+            ["toplu", "Toplu alım"], ["elenen", "Elenenler"], ["diger", "Düşük ihtimal"]];
+  }
+  return [["bolumum", (prof.kisa || prof.ad) + " (bölümüm)"], ["lisans", "Herhangi lisans"], ["belediye", "Belediye ilanları"],
+          ["toplu", "Toplu alım"], ["elenen", "Elenenler"]];
+}
+const ILK_SEKMELER = { bio: ["bio", "biosiz", "lisans", "muh"], digeri: ["bolumum", "lisans", "belediye"] };
+const SEVIYE = { guclu: "🔥 Biyomedikal", lisans: "📄 Herhangi lisans · KPSS'li", olasi: "⚙️ Mühendis", toplu: "📋 Toplu alım",
+                 belediye: "🏛️ Belediye ilanı", profil: "🎓 Bölümüne uygun", dusuk: "▫️ Düşük ihtimal" };
+const AGIRLIK = { profil: 0, guclu: 0, olasi: 1, lisans: 2, belediye: 3, toplu: 3, dusuk: 4 };
+const sekmeAnahtari = () => "sekme-v3:" + AKTIF;
+let VERI = null, SEKME = LS.get(sekmeAnahtari(), null), SON_ZIYARET = LS.get("sonZiyaret", 0);
 
 function gore(iso) {
   if (!iso) return "";
@@ -266,15 +329,16 @@ function ciz() {
   const liste = $("#liste");
   liste.replaceChildren();
   if (!VERI) return;
-  const p = profil(), ayar = VERI.ayar || {};
+  const p = profil(), ayar = VERI.ayar || {}, prof = aktifProfil();
   const q = fold($("#ara").value).trim();
-  const hepsi = (VERI.ilanlar || []).map((i) => ({ i, d: degerlendir(i, p, ayar) })).map((x) => ({ ...x, k: kova(x.i, x.d) }));
-  const sayac = Object.fromEntries(SEKMELER.map(([k]) => [k, hepsi.filter((x) => x.k === k).length]));
-  if (!SEKME || !(SEKME in sayac)) SEKME = ["bio", "biosiz", "lisans", "muh"].find((k) => sayac[k]) || "bio";
+  const SEK = sekmeler();
+  const hepsi = (VERI.ilanlar || []).map((i) => ({ i, d: degerlendir(i, p, ayar, prof) })).map((x) => ({ ...x, k: kova(x.i, x.d) }));
+  const sayac = Object.fromEntries(SEK.map(([k]) => [k, hepsi.filter((x) => x.k === k).length]));
+  if (!SEKME || !(SEKME in sayac)) SEKME = (ILK_SEKMELER[prof.id === "bio" ? "bio" : "digeri"]).find((k) => sayac[k]) || SEK[0][0];
   const sek = $("#sekmeler");
-  sek.replaceChildren(...SEKMELER.map(([k, ad]) => {
+  sek.replaceChildren(...SEK.map(([k, ad]) => {
     const b = el("button", { type: "button", "aria-pressed": String(k === SEKME) }, ad, el("small", null, sayac[k]));
-    b.addEventListener("click", () => { SEKME = k; LS.set("sekme-v2", k); ciz(); });
+    b.addEventListener("click", () => { SEKME = k; LS.set(sekmeAnahtari(), k); ciz(); });
     return b;
   }));
   const secili = hepsi.filter((x) => x.k === SEKME)
@@ -283,7 +347,9 @@ function ciz() {
   if (!secili.length) {
     liste.append(el("div", { class: "bos" }, ["bio", "biosiz"].includes(SEKME)
       ? "Şu an bu türde açık ilan yok. Tarama her 3 saatte bir çalışıyor; çıkınca burada görünür ve bildirim gelir."
-      : "Bu listede ilan yok."));
+      : SEKME === "bolumum" && prof.ozel && !LS.get("ozelKelime", "").trim()
+        ? "Yukarıdaki kutuya bölümünü ya da aradığın kelimeleri yaz."
+        : "Bu listede ilan yok."));
     return;
   }
   liste.append(...secili.slice(0, 120).map((x) => kartYap(x.i, x.d)));
@@ -342,6 +408,7 @@ const BAGLANTILAR = [
   ["Kariyer Kapısı — kamu iş ilanları (resmî)", "https://kariyerkapisi.gov.tr/"],
   ["ilan.gov.tr — Resmî İlan (personel alımı)", "https://www.ilan.gov.tr/"],
   ["Resmî Gazete (üniversite ve kurum ilanları)", "https://www.resmigazete.gov.tr/"],
+  ["İŞKUR — kamu işçi alımı (belediye işçi alımları buradan da yapılır)", "https://www.iskur.gov.tr/"],
   ["ÖSYM — KPSS duyuruları", "https://www.osym.gov.tr/SinavGrubu/Index/3"],
   ["Sağlık Bakanlığı personel duyuruları", "https://www.saglik.gov.tr/TR-99316/personel-duyurulari.html"],
   ["TİTCK (İlaç ve Tıbbi Cihaz Kurumu)", "https://www.titck.gov.tr/"],
@@ -381,19 +448,37 @@ function kurulumuBagla() {
   $("#profilKopya").addEventListener("click", () => kopyala(profilJson(profil()), $("#kopyaDurum")));
 }
 
-function profilBagla() {
+const ALANLAR = { p1: "#p1", p2: "#p2", p3: "#p3", dogum: "#dogum" };
+function profilAlanlariniDoldur() {
   const p = profil();
-  const alanlar = { p1: "#p1", p2: "#p2", p3: "#p3", dogum: "#dogum" };
-  const ozet = () => {
-    const q = profil(), n = Object.keys(profilPuanlar(q)).length;
-    $("#profilOzet").textContent = n ? `· P3 ${q.p3 || "—"}` : "· puanlarını gir";
-  };
-  for (const [k, sel] of Object.entries(alanlar)) {
-    $(sel).value = p[k] || "";
-    $(sel).addEventListener("input", () => { const q = profil(); q[k] = $(sel).value.trim(); LS.set(PROFIL_ANAHTAR, q); ozet(); ciz(); });
+  for (const [k, sel] of Object.entries(ALANLAR)) $(sel).value = p[k] || "";
+  const n = Object.keys(profilPuanlar(p)).length;
+  $("#profilOzet").textContent = n ? `· P3 ${p.p3 || "—"}` : "· puanlarını gir";
+  if (!n) $("#profilKart").open = true;
+}
+function profilBagla() {
+  for (const [k, sel] of Object.entries(ALANLAR)) {
+    $(sel).addEventListener("input", () => {
+      const q = profil(); q[k] = $(sel).value.trim(); LS.set(profilAnahtari(), q);
+      $("#profilOzet").textContent = Object.keys(profilPuanlar(q)).length ? `· P3 ${q.p3 || "—"}` : "· puanlarını gir";
+      ciz();
+    });
   }
-  ozet();
-  if (!Object.keys(profilPuanlar(p)).length) $("#profilKart").open = true;
+  profilAlanlariniDoldur();
+}
+function profilSecimiBagla() {
+  const url = new URLSearchParams(location.search).get("profil");
+  if (url && url !== AKTIF) { AKTIF = url; LS.set("aktifProfil", AKTIF); }
+  if (!profilListesi().some((p) => p.id === AKTIF)) AKTIF = "bio";
+  const sec = $("#profilSec"), prof = aktifProfil();
+  sec.replaceChildren(...profilListesi().map((p) => el("option", { value: p.id }, p.ad)));
+  sec.value = AKTIF;
+  SEKME = LS.get(sekmeAnahtari(), null);
+  $("#ozelEtiket").hidden = !prof.ozel;
+  $("#ozelKelime").value = LS.get("ozelKelime", "");
+  $("#altBaslik").textContent = `${prof.ad} · KPSS-2026 Lisans · 2 yıllık otomatik tarama`;
+  $("#profilNot").textContent = prof.tum_iller ? "Bu profilde tüm iller ve tüm belediyeler (işçi, memur, sözleşmeli) gösterilir." : "";
+  profilAlanlariniDoldur();
 }
 
 // ------------------------------------------------------------------ başlangıç
@@ -405,10 +490,22 @@ async function yukle() {
   } catch {
     $("#durum").textContent = "";
     $("#liste").replaceChildren(el("div", { class: "bos" }, "Henüz tarama verisi yok. İlk otomatik tarama GitHub Actions'ta çalışınca burada görünecek."));
+    profilSecimiBagla();
     return;
   }
-  durumYaz(); takvimYaz(); ciz(); secretLinkiGuncelle();
+  profilSecimiBagla(); durumYaz(); takvimYaz(); ciz(); secretLinkiGuncelle();
 }
+$("#profilSec").addEventListener("change", () => {
+  AKTIF = $("#profilSec").value; LS.set("aktifProfil", AKTIF);
+  history.replaceState(null, "", location.pathname);        // eski ?profil=... bağlantısı seçimi geri almasın
+  profilSecimiBagla(); ciz();
+});
+$("#ozelKelime").addEventListener("input", () => { LS.set("ozelKelime", $("#ozelKelime").value); ciz(); });
+$("#profilLink").addEventListener("click", async () => {
+  const hedef = $("#profilLinkDurum");
+  try { await navigator.clipboard.writeText(`${location.origin}${location.pathname}?profil=${AKTIF}`); hedef.textContent = "Kopyalandı ✓"; }
+  catch { hedef.textContent = "Kopyalanamadı"; }
+});
 profilBagla();
 kurulumuBagla();
 $("#ara").addEventListener("input", ciz);

@@ -32,7 +32,8 @@ KLASOR = Path(__file__).resolve().parent
 VERI = Path(os.environ.get("VERI_DIZINI") or KLASOR.parent / "data")
 UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36"
 NS_ICERIK = "{http://purl.org/rss/1.0/modules/content/}encoded"
-ILAN_SINIRI = 600          # data/ilanlar.json'da tutulacak en çok ilan
+ILAN_SINIRI = 1200         # data/ilanlar.json'da tutulacak en çok ilan
+ESKI_GUN = 60              # biyomedikal/mühendis/herhangi lisans dışındaki ilanlar bu süreden sonra listeden düşer
 GORULEN_GUN = 500          # görülen kimliklerin saklanma süresi
 BILDIRIM_GUN = 30          # bundan eski ilanlar için bildirim gönderme
 KEEPALIVE_GUN = 10         # değişiklik olmasa da bu sürede bir kayıt yaz (Actions'ı canlı tutar)
@@ -42,6 +43,7 @@ KK_ILAN = re.compile(r"^https://kariyerkapisi\.gov\.tr/IlanDetay\?i=([0-9a-fA-F-
 KK_DURUM_AD = "Kariyer Kapısı ilan ayrıntıları (API)"
 KK_TEKRAR_GUN = 21         # ayrıntısı alınamayan resmî ilanlar için yeniden deneme süresi
 VARSAYILAN_BILDIRIM = ("guclu", "olasi", "lisans")
+YAZMA_ARALIGI_SAAT = 6     # önemsiz değişiklikler (belediye/toplu alım) için veri dosyası en sık bu aralıkla yazılır
 METIN_ESIGI = 200          # bundan kısa metin "okunamadı" sayılır (Google Haberler yalnızca başlık verir)
 
 
@@ -271,7 +273,7 @@ def ozet(ilan, ayar):
     return " · ".join(parcalar)
 
 
-EMOJI = {"guclu": "🔥", "olasi": "⚙️", "lisans": "📄", "toplu": "🏛️"}
+EMOJI = {"guclu": "🔥", "olasi": "⚙️", "lisans": "📄", "toplu": "🏛️", "belediye": "🏛️", "profil": "🏛️"}
 
 
 def bildirim_basligi(i):
@@ -280,7 +282,7 @@ def bildirim_basligi(i):
         return "🔥 Biyomedikal ilanı" + (" (KPSS'siz)" if kd == "yok" else " (KPSS'li)" if kd in ("var", "karma") else "")
     if i["seviye"] == "lisans":
         return "📄 Herhangi lisans · KPSS'li alım"
-    if i["seviye"] == "toplu":
+    if i["seviye"] in ("toplu", "belediye", "profil"):
         return "🏛️ İzlediğin kurumda ilan"
     return "⚙️ Mühendis ilanı"
 
@@ -295,7 +297,8 @@ def bildir(konu, yeniler, ayar, sayfa_url, ilk):
         return
     for i in yeniler:
         oncelik, etiket = {"guclu": (4, "dart"), "olasi": (3, "gear"), "lisans": (2, "page_facing_up"),
-                           "toplu": (3, "classical_building")}.get(i["seviye"], (3, "gear"))
+                           "toplu": (3, "classical_building"), "belediye": (3, "classical_building"),
+                           "profil": (3, "classical_building")}.get(i["seviye"], (3, "gear"))
         uyari = "\n⚠ İlan metni okunamadı; bölüm ve puan şartını ilanda kontrol et." if i.get("metin_yok") else ""
         ntfy_gonder(konu, bildirim_basligi(i), f"{i['baslik']}\n{ozet(i, ayar)}{uyari}".strip(), tikla=i["url"],
                     oncelik=oncelik, etiketler=[etiket])
@@ -311,7 +314,7 @@ def oku_json(yol, varsayilan):
 
 def yaz_json(yol, veri):
     Path(yol).parent.mkdir(parents=True, exist_ok=True)
-    Path(yol).write_text(json.dumps(veri, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    Path(yol).write_text(json.dumps(veri, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
 
 
 def bildirilebilir(ilan, profil_elemesi, simdi, seviyeler=VARSAYILAN_BILDIRIM):
@@ -425,6 +428,8 @@ def calistir(kuru=False, sifirla=False):
             ilan["ayrinti"] = ayrinti       # False: resmî ilanın ayrıntısı henüz alınamadı, yeniden denenecek
         if d["izlenen"]:
             ilan["izlenen"] = True
+        if d["profiller"]:
+            ilan["profiller"] = d["profiller"]      # bu ilan hangi profillerin bölüm/görev anahtarına uyuyor
         if len((govde or "").strip()) < METIN_ESIGI:
             ilan["metin_yok"] = True        # yalnızca başlıkla sınıflandı: bölüm/puan şartı bilinmiyor
         return ilan, d
@@ -436,7 +441,8 @@ def calistir(kuru=False, sifirla=False):
             continue
         gorulen[o["id"]] = gorulen[tk] = bugun.isoformat()
         tk_gorulen.add(tk)
-        if analiz.sinifla(o["baslik"], o["govde"], o.get("resmi", False), analiz.izlenen_mi(o["baslik"], ayar)) is None:
+        if (analiz.sinifla(o["baslik"], o["govde"], o.get("resmi", False), analiz.izlenen_mi(o["baslik"], ayar)) is None
+                and analiz.sinifla_ek(o["baslik"], o["govde"], ayar) is None):
             continue
         govde, ayrinti = o["govde"], None
         guid = kk_guid(o["url"])
@@ -485,6 +491,8 @@ def calistir(kuru=False, sifirla=False):
             kaynak_durumlari.append(eski)
 
     ilanlar.sort(key=lambda i: (i["ilk_gorulme"], i["tarih"] or ""), reverse=True)
+    eski_sinir = (bugun - dt.timedelta(days=ESKI_GUN)).isoformat()
+    ilanlar = [i for i in ilanlar if i["seviye"] in ("guclu", "olasi", "lisans") or i["ilk_gorulme"][:10] >= eski_sinir]
     ilanlar = ilanlar[:ILAN_SINIRI]
     sinir = (bugun - dt.timedelta(days=GORULEN_GUN)).isoformat()
     durum["gorulen"] = {k: v for k, v in gorulen.items() if v >= sinir}
@@ -493,17 +501,26 @@ def calistir(kuru=False, sifirla=False):
     ayar_yankisi = {k: ayar[k] for k in ("kpss_yillari", "tercih_iller", "yakin_iller", "engelli_iller")}
     ayar_yankisi["hatirlatmalar"] = ayar.get("hatirlatmalar", [])
     ayar_yankisi["izlenen"] = ayar.get("izlenen", {})
+    ayar_yankisi["profiller"] = ayar.get("profiller", [])
     yeni_icerik = {"ilanlar": ilanlar, "kaynaklar": kaynak_durumlari, "ayar": ayar_yankisi}
     eski_icerik = {"ilanlar": onceki.get("ilanlar", []), "kaynaklar": onceki.get("kaynaklar", []),
                    "ayar": onceki.get("ayar", {})}
     son_kayit = dt.date.fromisoformat(durum.get("son_kayit", "2000-01-01"))
-    degisti = yeni_icerik != eski_icerik or ilk
+    yeni_eklenen = [i for i in ilanlar if i["ilk_gorulme"] == simdi_s]
+    onemli = bool(yeniler) or any(i["seviye"] in ("guclu", "olasi", "lisans") or i.get("izlenen") for i in yeni_eklenen)
+    yapi_degisti = yeni_icerik["ayar"] != eski_icerik["ayar"] or yeni_icerik["kaynaklar"] != eski_icerik["kaynaklar"]
+    son_yazma = dt.datetime.fromisoformat(durum.get("son_yazma", "2000-01-01T00:00:00+00:00"))
+    bekleme_doldu = (simdi - son_yazma) >= dt.timedelta(hours=YAZMA_ARALIGI_SAAT)
+    # Bildirilen/önemli ilan, ayar ya da kaynak durumu değişince hemen; yalnızca önemsiz ilan eklendiyse
+    # en fazla YAZMA_ARALIGI_SAAT'te bir yazılır (depo büyümesini sınırlar). Önemsiz ilanlar bir sonraki yazmada eklenir.
+    degisti = ilk or onemli or yapi_degisti or (yeni_icerik != eski_icerik and bekleme_doldu)
     if not kuru and (degisti or (bugun - son_kayit).days >= KEEPALIVE_GUN):
         yaz_json(VERI / "ilanlar.json", {
             "surum": 1, "guncelleme": simdi.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "baslangic": ayar["baslangic_tarihi"], "bitis": ayar["bitis_tarihi"], "depo": depo,
             "ayar": ayar_yankisi, "kaynaklar": kaynak_durumlari, "ilanlar": ilanlar})
         durum["son_kayit"] = bugun.isoformat()
+        durum["son_yazma"] = simdi.strftime("%Y-%m-%dT%H:%M:%S+00:00")
         yaz_json(VERI / "durum.json", durum)
 
     # 4) bildir

@@ -20,7 +20,17 @@
     "Avcılar Belediyesi mühendis alımı",
     "İstanbul ilçe belediyesi sözleşmeli personel alımı",
     "İBB iştirak şirketleri personel alımı",
-    "Bathonea personel alımı"
+    "Bathonea personel alımı",
+    "belediye personel alımı KPSS 2026",
+    "belediye memur alımı",
+    "belediye sözleşmeli personel alımı",
+    "belediye işçi alımı",
+    "büyükşehir belediyesi personel alımı",
+    "belediye şirketi personel alımı",
+    "çalışma ekonomisi ve endüstri ilişkileri mezunu personel alımı",
+    "iş müfettişi yardımcısı alımı",
+    "sosyal güvenlik kontrol memuru alımı",
+    "iş ve meslek danışmanı alımı İŞKUR"
   ],
   "kaynaklar": [
     {"ad": "Kariyer Kapısı (resmî RSS)", "tur": "rss", "url": "https://kariyerkapisi.gov.tr/RSS", "resmi": true},
@@ -34,5 +44,9 @@
   "izlenen": {"kurumlar": ["Avcılar", "Bathonea", "İBB"], "belediye_illeri": ["İstanbul"]},
   "hatirlatmalar": [
     {"ad": "KPSS-2026/2 merkezi atama tercih dönemi", "baslangic": "2026-12-17", "bitis": "2026-12-24", "gunler_once": [14, 3, 0], "not": "Tarih haberlere dayanıyor; ÖSYM'nin resmî duyurusunu doğrula. Kılavuzda 'Biyomedikal' ara.", "baglanti": "https://www.osym.gov.tr/SinavGrubu/Index/3"}
+  ],
+  "profiller": [
+    {"id": "bio", "ad": "Biyomedikal Mühendisi", "kisa": "Biyomedikal"},
+    {"id": "ceei", "ad": "Çalışma Ekonomisi ve Endüstri İlişkileri", "kisa": "Çalışma Ek. ve End. İliş.", "tum_iller": true, "isci_dahil": true, "anahtarlar": ["çalışma ekonomisi", "endüstri ilişkileri", "iş müfettişi", "sigorta müfettişi", "sosyal güvenlik kontrol memuru", "iş ve meslek danışmanı", "insan kaynakları"]}
   ]
 }
