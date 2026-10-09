@@ -321,7 +321,9 @@ def yaz_json(yol, veri):
     Path(yol).write_text(json.dumps(veri, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
 
 
-def bildirilebilir(ilan, profil_elemesi, simdi, seviyeler=VARSAYILAN_BILDIRIM):
+def bildirilebilir(ilan, profil_elemesi, simdi, seviyeler=VARSAYILAN_BILDIRIM, profil_id="bio"):
+    if profil_id in ilan.get("ilgisiz", []):
+        return False        # başka bir mesleğin kadrosu (veteriner, güvenlik görevlisi...): bu profil için bildirilmez
     izlenen = ilan.get("izlenen") and ilan["seviye"] != "dusuk"     # izlenen kurumdan her ilan (düşük ihtimal hariç)
     if (ilan["seviye"] not in seviyeler and not izlenen) or ilan["elendi"] or profil_elemesi:
         return False
@@ -422,10 +424,20 @@ def calistir(kuru=False, sifirla=False):
                 if yeni_g[k] and i["gercekler"].get(k) != yeni_g[k]:
                     i["gercekler"][k] = yeni_g[k]
                     tazelendi = True
+    for i in ilanlar:       # gizle listesi değişince eski kayıtların "ilgisiz" bilgisi de güncellenir
+        if i["seviye"] in analiz.GIZLENEBILIR:
+            yeni_il = analiz.ilgisiz_profiller(i["baslik"], ayar)
+            if yeni_il != i.get("ilgisiz", []):
+                if yeni_il:
+                    i["ilgisiz"] = yeni_il
+                else:
+                    i.pop("ilgisiz", None)
+                tazelendi = True
     for i in ilanlar:       # bu bayraktan önce kaydedilmiş ilanlar: Google Haberler ve Kariyer Kapısı yalnızca başlık verir
         if "metin_yok" not in i and (i["kaynak"].startswith("Google Haberler") or kk_guid(i["url"])):
             i["metin_yok"] = True
     seviyeler = tuple(ayar.get("bildirim_seviyeleri", VARSAYILAN_BILDIRIM))
+    bildirim_profili = ayar.get("bildirim_profili", "bio")
     tk_gorulen = {k for k in gorulen if k.startswith("t:")}
     yeniler, detay, kk = [], 0, KkApi(bool(ayar.get("kk_api", False)))
 
@@ -442,6 +454,8 @@ def calistir(kuru=False, sifirla=False):
             ilan["izlenen"] = True
         if d["profiller"]:
             ilan["profiller"] = d["profiller"]      # bu ilan hangi profillerin bölüm/görev anahtarına uyuyor
+        if d["ilgisiz"]:
+            ilan["ilgisiz"] = d["ilgisiz"]          # hangi profiller için başka bir mesleğin kadrosu (gizlenir, bildirilmez)
         if len((govde or "").strip()) < METIN_ESIGI:
             ilan["metin_yok"] = True        # yalnızca başlıkla sınıflandı: bölüm/puan şartı bilinmiyor
         return ilan, d
@@ -471,7 +485,7 @@ def calistir(kuru=False, sifirla=False):
             ilan["nedenler"] = ["Resmî Kariyer Kapısı ilanı: kadro listesi ve şartlar ilan sayfasında (otomatik okunamıyor)"]
         ilanlar.append(ilan)
         print(f"  + [{d['seviye']:6}] {o['baslik'][:100]}" + (f"   (eleme: {'; '.join(d['elendi'] + d['elendi_profil'])})" if d["elendi"] or d["elendi_profil"] else ""))
-        if bildirilebilir(ilan, d["elendi_profil"], simdi, seviyeler):
+        if bildirilebilir(ilan, d["elendi_profil"], simdi, seviyeler, bildirim_profili):
             yeniler.append(ilan)
 
     # Ayrıntısı alınamamış resmî ilanları yeniden dene (API geçici olarak kapalı olabilir).
@@ -490,7 +504,7 @@ def calistir(kuru=False, sifirla=False):
                     continue
                 print(f"  ~ [{d['seviye']:6}] ayrıntı alındı: {ilan['baslik'][:90]}")
                 ilan = yeni_ilan
-                if bildirilebilir(ilan, d["elendi_profil"], simdi, seviyeler):
+                if bildirilebilir(ilan, d["elendi_profil"], simdi, seviyeler, bildirim_profili):
                     yeniler.append(ilan)
         guncel.append(ilan)
     ilanlar = guncel

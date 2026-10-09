@@ -539,6 +539,33 @@ class IzlenenKurum(Taban):
         tara.calistir()
         self.assertEqual([i for i in self.ilanlar()["ilanlar"] if i["id"] == "e1"][0]["gercekler"]["genel_puanlar"], [65])
 
+    def test_izlenen_kurumda_baska_meslek_bildirilmez_ama_kaydi_isaretlenir(self):
+        self.ayar({**AYAR, "izlenen": {"kurumlar": ["Avcılar"], "belediye_illeri": ["İstanbul"]},
+                   "profiller": [{"id": "bio", "ad": "Biyomedikal"}],
+                   "gizle": {"brans": ["veteriner", "hekim"], "isci": ["zabıta", "temizlik"]},
+                   "kaynaklar": [{"ad": "Deneme RSS", "tur": "rss", "url": "https://haber.test/feed"}]})
+        self.sayfalar["https://haber.test/feed"] = rss(
+            ("Avcılar Belediyesi veteriner hekim alacak, KPSS", "https://haber.test/50", ""),
+            ("Avcılar Belediyesi 15 zabıta memuru alacak", "https://haber.test/51", ""),
+            ("Avcılar Belediyesi 20 memur alacak", "https://haber.test/52", ""))
+        tara.calistir()
+        self.assertEqual([k["tikla"] for _, k in self.bildirimler], ["https://haber.test/52"])
+        kayit = {i["url"]: i for i in self.ilanlar()["ilanlar"]}
+        self.assertEqual(kayit["https://haber.test/50"]["ilgisiz"], ["bio"])
+        self.assertNotIn("ilgisiz", kayit["https://haber.test/52"])
+
+    def test_gizle_listesi_degisince_eski_kayitlar_guncellenir(self):
+        self.ayar({**AYAR, "profiller": [{"id": "bio", "ad": "Biyomedikal"}], "gizle": {"brans": ["veteriner"], "isci": []},
+                   "kaynaklar": [{"ad": "Deneme RSS", "tur": "rss", "url": "https://haber.test/feed"}]})
+        d = self.ilanlar()
+        taban = {"nedenler": [], "elendi": [], "tarih": None, "kaynak": "x", "seviye": "belediye", "ilk_gorulme": "2026-10-08T00:00:00Z",
+                 "gercekler": {"kpss_durum": "belirsiz", "kpss_yillari": [], "puan_turleri": {}, "genel_puanlar": [],
+                               "yas_siniri": None, "iller": [], "ehliyet": False, "bolumler": []}}
+        d["ilanlar"] = [{**taban, "id": "g1", "baslik": "Belediye veteriner alacak", "url": "https://x/g1"}]
+        (self.veri / "ilanlar.json").write_text(json.dumps(d), encoding="utf-8")
+        tara.calistir()
+        self.assertEqual([i for i in self.ilanlar()["ilanlar"] if i["id"] == "g1"][0]["ilgisiz"], ["bio"])
+
     def test_izlenen_kurum_elenmisse_bildirilmez(self):
         self.sayfalar["https://haber.test/feed"] = rss(
             ("Avcılar Belediyesi 2024 KPSS ile personel alacak", "https://haber.test/3", ""))

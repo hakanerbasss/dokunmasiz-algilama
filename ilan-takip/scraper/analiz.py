@@ -46,6 +46,9 @@ TOPLU_HARIC = re.compile(r"akademik|ogretim uyesi|ogretim gorevlisi|arastirma go
                          r"jandarma|polis|ogretmen|hemsire|gorevde yukselme|unvan degisikligi|\biskur|\bisci\b")
 # Belediye ilanları (işçi, memur, sözleşmeli; her il) ve başka profillerin anahtar kelimeleri için ek sınıflama.
 BELEDIYE = re.compile(r"\bbelediye")
+# Mevzuat/sendika/maaş haberleri ilan değildir ("kadro teklifi Meclis'te", "zam", "toplu sözleşme").
+HABER_POLITIKA = re.compile(r"\bteklif|\bmeclis|sendika|toplu sozlesme|\bzam\b|ikramiye|\bgrev\b|\beylem|tazminat|kidem|"
+                            r"ilgilendiren|kanun teklif|yeni kanun|yonetmelik(?:te)? degis|genelge")
 PERSONEL_GENIS = re.compile(r"personel|memur|\bisci|sozlesmeli|\bkadro|zabita|itfaiye|temizlik gorevlisi|"
                             r"guvenlik gorevlisi|sofor|istihdam|is ilani|ise alim")
 # "KPSS'siz", "KPSS şartı aranmaz", "KPSS puanı olmayanlar da başvurabilir" ...
@@ -226,7 +229,7 @@ def sinifla(baslik, govde="", resmi=False, izlenen=False):
     if resmi and KILAVUZ.search(t) and not KILAVUZ_HARIC.search(t) and not TAHMIN.search(t):
         return "olasi", ["KPSS merkezi yerleştirme kılavuzu: biyomedikal/mühendis kadrolarını kılavuzda ara"]
 
-    if not HIRE.search(t) or SONUC.search(t):
+    if not HIRE.search(t) or SONUC.search(t) or HABER_POLITIKA.search(t):
         return None
     dogrudan = BIO.search(t) or (MUH.search(t) and PUBLIC.search(t))
     if not (PERSONEL.search(t) or dogrudan):
@@ -352,7 +355,7 @@ def sinifla_ek(baslik, govde="", ayar=None):
     ayar = ayar or {}
     t = fold(baslik)
     tum = f"{t} {fold(govde[:GOVDE_SINIRI])}"
-    if SONUC.search(t) or TAHMIN.search(t) or not HIRE.search(t):
+    if SONUC.search(t) or TAHMIN.search(t) or HABER_POLITIKA.search(t) or not HIRE.search(t):
         return None
     if PROC.search(t) and not PROC_ISTISNA.search(t):
         return None
@@ -361,6 +364,29 @@ def sinifla_ek(baslik, govde="", ayar=None):
     if BELEDIYE.search(t) and PERSONEL_GENIS.search(t):
         return "belediye", ["Belediye ilanı: kadro listesi ve şartlar ilanda"]
     return None
+
+
+def ilgisiz_profiller(baslik, ayar):
+    """Başlıkta başka bir mesleğin/branşın kadrosu açıkça yazıyorsa, o profil için ilgisiz sayılır.
+
+    ayar["gizle"] = {"brans": [...], "isci": [...]}: branşa özel meslekler (veteriner, hekim, öğretmen...) tüm profillerde;
+    işçi/alt kadrolar (güvenlik, şoför, temizlik...) yalnızca `isci_dahil` olmayan profillerde gizlenir.
+    "Herhangi lisans" yazıyorsa ya da profilin kendi anahtarı/biyomedikal geçiyorsa gizlenmez."""
+    t = fold(baslik)
+    gizle = ayar.get("gizle") or {}
+    if not gizle or HERHANGI_LISANS.search(t):
+        return []
+    sonuc = []
+    for p in ayar.get("profiller", []):
+        if (p["id"] == "bio" and BIO.search(t)) or any(fold(k) in t for k in p.get("anahtarlar", [])):
+            continue
+        liste = list(gizle.get("brans", [])) + ([] if p.get("isci_dahil") else list(gizle.get("isci", [])))
+        if any(fold(k) in t for k in liste):
+            sonuc.append(p["id"])
+    return sonuc
+
+
+GIZLENEBILIR = ("toplu", "belediye", "profil", "lisans")     # biyomedikal/mühendis ilanları bu kuraldan etkilenmez
 
 
 def izlenen_mi(baslik, ayar):
@@ -398,4 +424,5 @@ def degerlendir(baslik, govde, ayar, profil=None, yil=2026, resmi=False):
         "elendi_profil": profil_elemeleri(g, profil, yil),
         "izlenen": izlenen,
         "profiller": anahtar_eslesmesi(tum, ayar),
+        "ilgisiz": ilgisiz_profiller(baslik, ayar) if seviye in GIZLENEBILIR else [],
     }

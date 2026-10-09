@@ -262,8 +262,10 @@ function ozelEslesme(i) {
   return k.some((x) => metin.includes(x));
 }
 function kova(i, d) {
-  if (d.red.length) return "elenen";
   const prof = aktifProfil();
+  // Başka bir mesleğin kadrosu (veteriner, hekim, güvenlik görevlisi...): bu profil için hiç gösterilmez.
+  if ((i.ilgisiz || []).includes(prof.ozel ? "ceei" : prof.id)) return "gizli";
+  if (d.red.length) return "elenen";
   if (prof.id === "bio") {
     const kd = (i.gercekler || {}).kpss_durum;
     switch (i.seviye) {
