@@ -48,5 +48,7 @@
   "profiller": [
     {"id": "bio", "ad": "Biyomedikal Mühendisi", "kisa": "Biyomedikal"},
     {"id": "ceei", "ad": "Çalışma Ekonomisi ve Endüstri İlişkileri", "kisa": "Çalışma Ek. ve End. İliş.", "tum_iller": true, "isci_dahil": true, "anahtarlar": ["çalışma ekonomisi", "endüstri ilişkileri", "iş müfettişi", "sigorta müfettişi", "sosyal güvenlik kontrol memuru", "iş ve meslek danışmanı", "insan kaynakları"]}
-  ]
+  ],
+  "gizle": {"brans": ["veteriner", "hekim", "tabip", "doktor", "hemşire", "ebe", "eczacı", "diyetisyen", "fizyoterapist", "psikolog", "sosyal çalışmacı", "öğretmen", "avukat", "mimar", "şehir plancısı", "peyzaj", "ziraat mühendis", "orman mühendis", "inşaat mühendis", "makine mühendis", "elektrik mühendis", "harita mühendis", "jeoloji", "gıda mühendis", "çevre mühendis", "hakim", "savcı", "imam", "müezzin", "vaiz", "pilot", "kabin memur", "tekniker", "teknisyen", "sağlık teknikeri", "laborant", "radyoloji", "anestezi", "çocuk gelişimi", "sosyolog"], "isci": ["güvenlik görevli", "koruma ve güvenlik", "güvenlik personeli", "özel güvenlik", "bekçi", "zabıta", "itfaiye", "şoför", "sürücü", "temizlik", "aşçı", "mutfak", "bahçıvan", "kaynakçı", "tesisatçı", "işçi alım", "işçi al", "işçisi", "daimi işçi", "kadrolu işçi"]},
+  "bildirim_profili": "bio"
 }

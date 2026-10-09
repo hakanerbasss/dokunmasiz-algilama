@@ -206,7 +206,7 @@ function degerlendir(i, p, ayar, prof) {
   let red = [...(i.elendi || [])];
   const uyar = [], iyi = [], notr = [], iller = [];
   const puan = profilPuanlar(p), puanVar = Object.keys(puan).length > 0;
-  const kpssiz = g.kpss_durum === "yok";
+  const kpssiz = g.kpss_durum === "yok" || g.kpss_durum === "karma";   // KPSS'siz yoldan başvurulabiliyorsa puan eleme nedeni olamaz
   const turler = kpssiz ? [] : Object.entries(g.puan_turleri || {});
   if (turler.length && puanVar) {
     const sahip = turler.filter(([t]) => t in puan);
@@ -217,9 +217,14 @@ function degerlendir(i, p, ayar, prof) {
     } else sahip.forEach(([t, mn]) => iyi.push(mn != null ? `KPSS${t} ≥ ${mn} ✓` : `KPSS${t} ✓`));
   } else if (turler.length) {
     uyar.push("KPSS" + turler.map(([t, mn]) => t + (mn ? ` ≥ ${mn}` : "")).join(" / ") + " — puanlarını gir");
-  } else if ((g.genel_puanlar || []).length && puanVar) {
-    const en = Math.max(...Object.values(puan)), alt = Math.min(...g.genel_puanlar);
-    if (en < alt) uyar.push(`Taban puan ~${alt} (en yüksek puanın ${en})`);
+  } else if ((g.genel_puanlar || []).length && !kpssiz) {
+    const alt = Math.min(...g.genel_puanlar);
+    if (puanVar) {
+      const en = Math.max(...Object.values(puan));
+      // İlan puan türünü yazmasa da en düşük kadro eşiği en yüksek puanımın üstündeyse hangi türden olursa olsun yetmez.
+      if (en < alt) red.push(`KPSS en az ${alt} isteniyor (en yüksek puanın ${en})`);
+      else iyi.push(`KPSS taban ~${alt} ✓`);
+    } else uyar.push(`KPSS taban ~${alt} — puanlarını gir`);
   }
   const dogum = parseInt(p.dogum, 10);
   if (g.yas_siniri) {
@@ -231,6 +236,7 @@ function degerlendir(i, p, ayar, prof) {
   }
   if ((g.kpss_yillari || []).length && !red.some((r) => /KPSS puanı esas/.test(r))) iyi.push(`KPSS ${g.kpss_yillari.join("/")} ✓`);
   if (g.ehliyet) notr.push("Ehliyet geçiyor");
+  if (g.yas_riski && !g.yas_siniri) uyar.push("Bu tür kadrolarda genelde yaş sınırı ve fiziki şart olur — ilanı oku");
   if (g.kpss_durum === "yok") iyi.push("KPSS'siz");
   if (g.kpss_durum === "karma") notr.push("KPSS'siz de olabilir");
   if (i.ayrinti === false) uyar.push("Ayrıntı alınamadı — ilanı açıp kadro listesine bak");
@@ -256,8 +262,10 @@ function ozelEslesme(i) {
   return k.some((x) => metin.includes(x));
 }
 function kova(i, d) {
-  if (d.red.length) return "elenen";
   const prof = aktifProfil();
+  // Başka bir mesleğin kadrosu (veteriner, hekim, güvenlik görevlisi...): bu profil için hiç gösterilmez.
+  if ((i.ilgisiz || []).includes(prof.ozel ? "ceei" : prof.id)) return "gizli";
+  if (d.red.length) return "elenen";
   if (prof.id === "bio") {
     const kd = (i.gercekler || {}).kpss_durum;
     switch (i.seviye) {

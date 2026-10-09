@@ -108,6 +108,34 @@ Kaynakların çalışıp çalışmadığı sayfadaki *Kaynak sağlığı* bölü
 > `ilan.gov.tr` sertifika zinciri eksik olduğu için doğrulanamıyor; Resmî Gazete'ye erişilemedi. İkisi için
 > sayfadaki *Elle kontrol et* bağlantılarını kullan.
 
+## Başka mesleğin kadrosu gizlenir
+
+Başlıkta başka bir mesleğin kadrosu açıkça yazıyorsa (örn. "veteriner hekim alacak, KPSS 60") ilan KPSS şartını tutsa
+bile **o profilden gizlenir ve bildirilmez.** `ayar.json` → `gizle`:
+
+- `brans`: belirli bir bölüm/meslek isteyen kadrolar (veteriner, hekim, hemşire, öğretmen, avukat, mimar, tekniker,
+  inşaat/makine/elektrik mühendisi ...). **Bütün profillerde** gizlenir.
+- `isci`: işçi/alt kadrolar (güvenlik görevlisi, zabıta, itfaiye, şoför, temizlik, işçi alımı ...). Yalnızca
+  `isci_dahil` olmayan profillerde (Biyomedikal) gizlenir; arkadaşının profilinde kalır.
+
+İstisnalar: başlıkta "herhangi bir lisans" yazıyorsa, biyomedikal ya da profilin kendi anahtarı geçiyorsa gizlenmez.
+Mühendis ilanları bu kuraldan etkilenmez (onlar bölüm listesine göre ayrılır). Başlığı söylemeyen bir ilanın içindeki
+kadro listesi (ör. "Üniversite 40 personel alacak" ve içinde veteriner) başlıktan anlaşılamaz. Listeleri `ayar.json`'dan
+değiştirebilirsin; eski kayıtlar bir sonraki taramada otomatik güncellenir.
+
+## Bildirimleri puana ve yaşa göre süzmek (PROFIL_JSON)
+
+Puanların ve doğum yılın yalnızca telefondaki sayfada durur; **sunucu bunları bilmez.** Bu yüzden `PROFIL_JSON` gizli
+anahtarı eklenmedikçe bildirimler puana/yaşa bakmaz ("65 KPSS ile" diyen bir ilan için de haber gelir). Sayfada o ilan
+yine "Elenenler"e düşer. Süzgeç için sayfadaki *PROFIL_JSON değerini kopyala* düğmesiyle değeri alıp
+Settings → Secrets and variables → Actions → *New repository secret* (ad: `PROFIL_JSON`) olarak ekle.
+
+Süzgeç ilanda yazan şartlara bakar: başlıkta ya da metinde asgari puan ("65 KPSS", "KPSS 70 puan", "en az 75 puan"),
+puan türü ("KPSSP3 en az 70") ve yaş sınırı ("35 yaşını doldurmamış"). Başlık bunları söylemiyorsa şart bilinemez:
+bildirim yine gelir, mesajda bulunan eşik ("KPSS taban ≥ 65") yazar. Zabıta, itfaiye, koruma-güvenlik gibi kadrolarda yaş
+sınırı ve fiziki şart genelde bulunduğu için "yaş/fiziki şart olabilir" uyarısı eklenir. "KPSS'siz de olabilir" diyen
+ilanlarda puan eleme nedeni sayılmaz.
+
 ## Gizlilik
 
 Depo herkese açık olduğu için **puanların, doğum yılın ve TC kimlik numaran depoya yazılmaz.**
