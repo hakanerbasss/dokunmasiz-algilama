@@ -345,5 +345,122 @@ class Kategoriler(Taban):
         self.assertEqual(self.bildirimler, [])
 
 
+HAT = {"ad": "Deneme dönemi", "baslangic": "2026-12-17", "bitis": "2026-12-24", "gunler_once": [14, 3, 0],
+       "not": "Kılavuzda 'Biyomedikal' ara.", "baglanti": "https://osym.test/"}
+
+
+class HatirlatmaMantigi(unittest.TestCase):
+    def bul(self, gun, gonderilen=()):
+        return tara.hatirlatma_bul({"hatirlatmalar": [HAT]}, dt.date.fromisoformat(gun), set(gonderilen))
+
+    def test_esikler(self):
+        self.assertEqual(self.bul("2026-12-02"), [])                                    # 15 gün kala: henüz değil
+        b = self.bul("2026-12-03")[0]
+        self.assertEqual(b[1], "📅 Deneme dönemi: 14 gün kaldı")
+        self.assertIn("17.12.2026 – 24.12.2026", b[2])
+        self.assertIn("Biyomedikal", b[2])
+        self.assertEqual(b[3], "https://osym.test/")
+        self.assertEqual(self.bul("2026-12-14")[0][1], "📅 Deneme dönemi: 3 gün kaldı")
+        self.assertEqual(self.bul("2026-12-17")[0][1], "📅 Deneme dönemi: başladı")
+        self.assertEqual(self.bul("2026-12-20")[0][1], "📅 Deneme dönemi: başladı")       # dönem sürerken de (bir kez)
+        self.assertEqual(self.bul("2026-12-25"), [])                                    # bitti
+
+    def test_ayni_esik_bir_kez(self):
+        anahtarlar = self.bul("2026-12-03")[0][0]
+        self.assertEqual(self.bul("2026-12-03", anahtarlar), [])
+        self.assertEqual(self.bul("2026-12-10", anahtarlar), [])                        # 14 gün eşiği tamam, 3 gün henüz yok
+
+    def test_kacan_esikler_tek_bildirim(self):
+        b = self.bul("2026-12-15")                                                      # 2 gün kala, hiç gönderilmemiş
+        self.assertEqual(len(b), 1)
+        self.assertEqual(b[0][1], "📅 Deneme dönemi: 2 gün kaldı")
+        self.assertEqual(len(b[0][0]), 2)                                               # 14 ve 3 gün eşikleri de işaretlenir
+        self.assertEqual(self.bul("2026-12-16", b[0][0]), [])
+
+
+class Hatirlatma(Taban):
+    def setUp(self):
+        super().setUp()
+        self.saat = dt.datetime(2026, 12, 2, 9, 0, tzinfo=dt.timezone.utc)
+        self.yama = mock.patch.object(tara, "simdi_al", side_effect=lambda: self.saat)
+        self.yama.start()
+        self.ayar({**AYAR, "hatirlatmalar": [HAT], "kaynaklar": [{"ad": "Deneme RSS", "tur": "rss", "url": "https://haber.test/feed"}]})
+        self.sayfalar["https://haber.test/feed"] = rss(("Jaguar yeni model tanıttı", "https://haber.test/0", ""))
+
+    def tearDown(self):
+        self.yama.stop()
+        super().tearDown()
+
+    def gun(self, g):
+        self.saat = dt.datetime.fromisoformat(g + "T09:00:00+00:00")
+        self.bildirimler.clear()
+        tara.calistir()
+        return [(a[1], k) for a, k in self.bildirimler]
+
+    def test_takvim_boyunca(self):
+        self.assertEqual(self.gun("2026-12-02"), [])
+        b = self.gun("2026-12-03")
+        self.assertEqual([x[0] for x in b], ["📅 Deneme dönemi: 14 gün kaldı"])
+        self.assertEqual(b[0][1]["oncelik"], 4)
+        self.assertEqual(self.gun("2026-12-03"), [])                                    # aynı gün ikinci tarama: sessiz
+        self.assertEqual(self.gun("2026-12-10"), [])
+        self.assertEqual([x[0] for x in self.gun("2026-12-14")], ["📅 Deneme dönemi: 3 gün kaldı"])
+        self.assertEqual([x[0] for x in self.gun("2026-12-17")], ["📅 Deneme dönemi: başladı"])
+        self.assertEqual(self.gun("2026-12-18"), [])
+        self.assertEqual(self.gun("2026-12-25"), [])
+
+    def test_durum_kalici(self):
+        self.gun("2026-12-03")
+        durum = json.loads((self.veri / "durum.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(durum["hatirlatma"]), 1)
+
+    def test_konu_yoksa_gonderilmez_ve_isaretlenmez(self):
+        self.saat = dt.datetime(2026, 12, 3, 9, 0, tzinfo=dt.timezone.utc)
+        with mock.patch.dict(os.environ, {"NTFY_TOPIC": ""}):
+            tara.calistir()
+        self.assertEqual(self.bildirimler, [])
+        self.assertEqual(self.gun("2026-12-03")[0][0], "📅 Deneme dönemi: 14 gün kaldı")   # konu gelince yine gönderilir
+
+    def test_gonderim_hatasinda_isaretlenmez(self):
+        self.saat = dt.datetime(2026, 12, 3, 9, 0, tzinfo=dt.timezone.utc)
+        with mock.patch.object(tara, "ntfy_gonder", side_effect=OSError("ağ yok")):
+            tara.calistir()
+        self.assertEqual(self.gun("2026-12-03")[0][0], "📅 Deneme dönemi: 14 gün kaldı")   # bir sonraki taramada tekrar denenir
+
+    def test_hatirlatma_ayari_sayfaya_yansir(self):
+        tara.calistir()
+        d = self.ilanlar()
+        self.assertEqual(d["ayar"]["hatirlatmalar"][0]["ad"], "Deneme dönemi")
+
+
+class IzlenenKurum(Taban):
+    def setUp(self):
+        super().setUp()
+        self.ayar({**AYAR, "izlenen": {"kurumlar": ["Avcılar"], "belediye_illeri": ["İstanbul"]},
+                   "kaynaklar": [{"ad": "Deneme RSS", "tur": "rss", "url": "https://haber.test/feed"}]})
+        self.sayfalar["https://haber.test/feed"] = rss(("Jaguar yeni model tanıttı", "https://haber.test/0", ""))
+        tara.calistir()
+        self.bildirimler.clear()
+
+    def test_izlenen_kurum_toplu_olsa_da_bildirilir(self):
+        self.sayfalar["https://haber.test/feed"] = rss(
+            ("Avcılar Belediyesi 20 personel alacak", "https://haber.test/1", ""),
+            ("Kocaeli Belediyesi 20 personel alacak", "https://haber.test/2", ""))
+        tara.calistir()
+        self.assertEqual(len(self.bildirimler), 1)
+        (konu, baslik, mesaj), kw = self.bildirimler[0]
+        self.assertEqual(baslik, "🏛️ İzlediğin kurumda ilan")
+        self.assertEqual(kw["tikla"], "https://haber.test/1")
+        kayit = {i["url"]: i for i in self.ilanlar()["ilanlar"]}
+        self.assertTrue(kayit["https://haber.test/1"]["izlenen"])
+        self.assertNotIn("izlenen", kayit["https://haber.test/2"])
+
+    def test_izlenen_kurum_elenmisse_bildirilmez(self):
+        self.sayfalar["https://haber.test/feed"] = rss(
+            ("Avcılar Belediyesi 2024 KPSS ile personel alacak", "https://haber.test/3", ""))
+        tara.calistir()
+        self.assertEqual(self.bildirimler, [])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -15,7 +15,12 @@
     "Türkiye İlaç ve Tıbbi Cihaz Kurumu personel alımı",
     "Sağlık Bilimleri Üniversitesi sözleşmeli personel alımı",
     "üniversite sözleşmeli personel alımı mühendis",
-    "KPSS tercih kılavuzu 2026 merkezi yerleştirme"
+    "KPSS tercih kılavuzu 2026 merkezi yerleştirme",
+    "Avcılar Belediyesi personel alımı",
+    "Avcılar Belediyesi mühendis alımı",
+    "İstanbul ilçe belediyesi sözleşmeli personel alımı",
+    "İBB iştirak şirketleri personel alımı",
+    "Bathonea personel alımı"
   ],
   "kaynaklar": [
     {"ad": "Kariyer Kapısı (resmî RSS)", "tur": "rss", "url": "https://kariyerkapisi.gov.tr/RSS", "resmi": true},
@@ -25,5 +30,9 @@
     {"ad": "TİTCK duyuruları", "tur": "sayfa", "url": "https://www.titck.gov.tr/", "filtre": "personel|alim|ilan|muhendis|sinav|kpss", "resmi": true}
   ],
   "bildirim_seviyeleri": ["guclu", "olasi", "lisans"],
-  "kk_api": false
+  "kk_api": false,
+  "izlenen": {"kurumlar": ["Avcılar", "Bathonea", "İBB"], "belediye_illeri": ["İstanbul"]},
+  "hatirlatmalar": [
+    {"ad": "KPSS-2026/2 merkezi atama tercih dönemi", "baslangic": "2026-12-17", "bitis": "2026-12-24", "gunler_once": [14, 3, 0], "not": "Tarih haberlere dayanıyor; ÖSYM'nin resmî duyurusunu doğrula. Kılavuzda 'Biyomedikal' ara.", "baglanti": "https://www.osym.gov.tr/SinavGrubu/Index/3"}
+  ]
 }

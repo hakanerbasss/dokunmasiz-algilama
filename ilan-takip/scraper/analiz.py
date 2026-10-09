@@ -66,6 +66,15 @@ TAKMA_ADLAR = {"silivri": "İstanbul", "izmit": "Kocaeli", "gebze": "Kocaeli", "
                "corlu": "Tekirdağ", "cerkezkoy": "Tekirdağ", "safranbolu": "Karabük",
                "amasra": "Bartın", "maras": "Kahramanmaraş", "urfa": "Şanlıurfa",
                "afyon": "Afyonkarahisar", "icel": "Mersin"}
+# "Avcılar Belediyesi", "Beylikdüzü Belediyesi" ... İstanbul'a sayılır (ilçe adı tek başına yanıltıcı olabilir:
+# "tuzla", "kartal", "fatih" sıradan sözcük/özel ad olabilir, bu yüzden yalnızca "<ilçe> belediye" kalıbında).
+ISTANBUL_ILCELERI = ["adalar", "arnavutkoy", "atasehir", "avcilar", "bagcilar", "bahcelievler", "bakirkoy",
+                     "basaksehir", "bayrampasa", "besiktas", "beykoz", "beylikduzu", "beyoglu", "buyukcekmece",
+                     "catalca", "cekmekoy", "esenler", "esenyurt", "eyupsultan", "fatih", "gaziosmanpasa",
+                     "gungoren", "kadikoy", "kagithane", "kartal", "kucukcekmece", "maltepe", "pendik",
+                     "sancaktepe", "sariyer", "silivri", "sultanbeyli", "sultangazi", "sile", "sisli", "tuzla",
+                     "umraniye", "uskudar", "zeytinburnu"]
+_ILCE_BELEDIYE_RE = re.compile(r"\b(?:%s)\s+belediye" % "|".join(ISTANBUL_ILCELERI))
 # "Van", "Ordu", "Ağrı" sıradan sözcük de olabilir; yalnızca büyük harfle yazılmışsa il say.
 _BELIRSIZ = {"Van", "Ordu", "Ağrı"}
 _IL_RE = {fold(il): re.compile(r"\b%s\b" % re.escape(fold(il))) for il in ILLER if il not in _BELIRSIZ}
@@ -98,6 +107,8 @@ def iller_bul(orijinal, katlanmis):
     for il, rx in _BELIRSIZ_RE.items():
         if rx.search(orijinal) and il not in bulunan:
             bulunan.append(il)
+    if _ILCE_BELEDIYE_RE.search(katlanmis) and "İstanbul" not in bulunan:
+        bulunan.append("İstanbul")
     return sorted(bulunan)
 
 
@@ -188,7 +199,7 @@ def gercekler(orijinal, tum):
     }
 
 
-def sinifla(baslik, govde="", resmi=False):
+def sinifla(baslik, govde="", resmi=False, izlenen=False):
     """-> (seviye, nedenler) ya da None (ilgisiz).
 
     seviye: guclu (biyomedikal geçiyor; KPSS'li ya da KPSS'siz olduğu gercekler.kpss_durum'dan okunur) |
@@ -215,8 +226,8 @@ def sinifla(baslik, govde="", resmi=False):
         # Biyomedikal ilanı özel/yarı kamu kuruluşundan da olsa (özellikle KPSS'siz) gösterilir.
         ek = ["Özel sektör ilanı olabilir"] if PRIVATE.search(t) else []
         return "guclu", ["Başlıkta biyomedikal/tıp mühendisliği geçiyor"] + ek
-    if PRIVATE.search(t) and "kpss" not in tum:
-        return None
+    if PRIVATE.search(t) and "kpss" not in tum and not izlenen:
+        return None         # izlenen kurumun iştirak şirketi ilanları özel sektör sayılmaz
     if BIO.search(g):
         return "guclu", ["Metinde biyomedikal/tıp mühendisliği kadrosu geçiyor"]
 
@@ -306,9 +317,25 @@ def profil_elemeleri(g, profil, yil):
     return nedenler
 
 
+def izlenen_mi(baslik, ayar):
+    """Kullanıcının çalıştığı/izlediği kurum mu? Yalnızca BAŞLIĞA bakılır (gövdede tesadüfen geçmesin).
+
+    ayar["izlenen"] = {"kurumlar": ["Avcılar", ...], "belediye_illeri": ["İstanbul"]}
+    - kurumlar: başlıkta bu sözcükle başlayan bir ad geçiyorsa
+    - belediye_illeri: başlıkta "belediye" geçiyor ve ilçe/il bu illerden biriyse"""
+    iz = ayar.get("izlenen") or {}
+    t = fold(baslik)
+    for k in iz.get("kurumlar", []):
+        if re.search(r"\b%s" % re.escape(fold(k)), t):
+            return True
+    iller = iz.get("belediye_illeri", [])
+    return bool(iller and re.search(r"\bbelediye", t) and set(iller) & set(iller_bul(baslik, t)))
+
+
 def degerlendir(baslik, govde, ayar, profil=None, yil=2026, resmi=False):
     """Tam hat: ilgisizse None, değilse {seviye, nedenler, gercekler, elendi, elendi_profil}."""
-    s = sinifla(baslik, govde, resmi)
+    izlenen = izlenen_mi(baslik, ayar)
+    s = sinifla(baslik, govde, resmi, izlenen)
     if s is None:
         return None
     seviye, nedenler = s
@@ -320,4 +347,5 @@ def degerlendir(baslik, govde, ayar, profil=None, yil=2026, resmi=False):
         "gercekler": g,
         "elendi": profilsiz_elemeler(baslik, govde, g, ayar),
         "elendi_profil": profil_elemeleri(g, profil, yil),
+        "izlenen": izlenen,
     }
