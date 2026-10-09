@@ -1,6 +1,6 @@
 {
  "surum": 1,
- "guncelleme": "2026-10-09T10:41:57Z",
+ "guncelleme": "2026-10-09T10:43:52Z",
  "baslangic": "2026-10-08",
  "bitis": "2028-10-08",
  "depo": "hakanerbasss/dokunmasiz-algilama",
@@ -54,7 +54,31 @@
    "Şırnak",
    "Tunceli",
    "Van"
-  ]
+  ],
+  "hatirlatmalar": [
+   {
+    "ad": "KPSS-2026/2 merkezi atama tercih dönemi",
+    "baslangic": "2026-12-17",
+    "bitis": "2026-12-24",
+    "gunler_once": [
+     14,
+     3,
+     0
+    ],
+    "not": "Tarih haberlere dayanıyor; ÖSYM'nin resmî duyurusunu doğrula. Kılavuzda 'Biyomedikal' ara.",
+    "baglanti": "https://www.osym.gov.tr/SinavGrubu/Index/3"
+   }
+  ],
+  "izlenen": {
+   "kurumlar": [
+    "Avcılar",
+    "Bathonea",
+    "İBB"
+   ],
+   "belediye_illeri": [
+    "İstanbul"
+   ]
+  }
  },
  "kaynaklar": [
   {
@@ -108,6 +132,31 @@
    "hata": ""
   },
   {
+   "ad": "Google Haberler: Avcılar Belediyesi personel alımı",
+   "tamam": true,
+   "hata": ""
+  },
+  {
+   "ad": "Google Haberler: Avcılar Belediyesi mühendis alımı",
+   "tamam": true,
+   "hata": ""
+  },
+  {
+   "ad": "Google Haberler: İstanbul ilçe belediyesi sözleşmeli personel alımı",
+   "tamam": true,
+   "hata": ""
+  },
+  {
+   "ad": "Google Haberler: İBB iştirak şirketleri personel alımı",
+   "tamam": true,
+   "hata": ""
+  },
+  {
+   "ad": "Google Haberler: Bathonea personel alımı",
+   "tamam": true,
+   "hata": ""
+  },
+  {
    "ad": "Kariyer Kapısı (resmî RSS)",
    "tamam": true,
    "hata": ""
@@ -134,6 +183,29 @@
   }
  ],
  "ilanlar": [
+  {
+   "id": "CBMirwFBVV95cUxOT3N2cHl2RkVlc0JiS09PZXRxV1ZFTlIwdlY5NXN6TVRrajFPenlYWjRUUmtYdjNQdkEzX09xcjVqbXd0bnZNNExITk1NLXhYTk1ZeFBRSURpQjk4Y0tacXhuc1I0ZWtwNmtWaWFpVUhWWV9pM01iRUtxSmtibUhmc0NDcnVqN2k4aDd2dkxEcWFSa2VJM25pWGVuZm5jSUx0RmZEcVl6blZvZ2E2dzZr",
+   "baslik": "İSBAK KİTAŞ İlçe Belediyesi Farklı Ünvanlar Personel Alımı",
+   "url": "https://news.google.com/rss/articles/CBMirwFBVV95cUxOT3N2cHl2RkVlc0JiS09PZXRxV1ZFTlIwdlY5NXN6TVRrajFPenlYWjRUUmtYdjNQdkEzX09xcjVqbXd0bnZNNExITk1NLXhYTk1ZeFBRSURpQjk4Y0tacXhuc1I0ZWtwNmtWaWFpVUhWWV9pM01iRUtxSmtibUhmc0NDcnVqN2k4aDd2dkxEcWFSa2VJM25pWGVuZm5jSUx0RmZEcVl6blZvZ2E2dzZr?oc=5",
+   "kaynak": "Google Haberler: İstanbul ilçe belediyesi sözleşmeli personel alımı",
+   "tarih": "2026-10-06T10:50:58Z",
+   "ilk_gorulme": "2026-10-09T10:43:52Z",
+   "seviye": "toplu",
+   "nedenler": [
+    "Toplu personel alımı: kadro listesinde mühendis var mı bak"
+   ],
+   "gercekler": {
+    "kpss_durum": "belirsiz",
+    "kpss_yillari": [],
+    "puan_turleri": {},
+    "genel_puanlar": [],
+    "yas_siniri": null,
+    "iller": [],
+    "ehliyet": false,
+    "bolumler": []
+   },
+   "elendi": []
+  },
   {
    "id": "CBMirAFBVV95cUxPSExoSEtCVTJpSWdzbEx3YnZxX0pVX2dteGRNcVlyOFZsdlBoa0JHWG5WWTdyZWhMYjhuT2drWGo4R01kOWgxYVo0dWIydXNSTl9Na3pPdUdjWlNDVjQtak9PWE9oTjBIUHhMbEw3bDZja08yVXNTX1IzaHBXeXlJUWRoSnViRXFQQUV4c2EtRzEyT2dzQ19mUmpwNS1QMTNyV3BWYjNnd1dWRVNK",
    "baslik": "Resmi İlan Bugün Geldi: Savunma Sanayii Memur Alımı Yapacak",
