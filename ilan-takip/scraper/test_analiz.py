@@ -140,6 +140,41 @@ class Kategoriler(unittest.TestCase):
         self.assertEqual(sev("Belediye KPSS ile mühendis alacak, diğer kadrolara herhangi bir lisans mezunu"), "olasi")
 
 
+class Izlenen(unittest.TestCase):
+    AY = {"kpss_yillari": [2026], "engelli_iller": [],
+          "izlenen": {"kurumlar": ["Avcılar", "Bathonea", "İBB"], "belediye_illeri": ["İstanbul"]}}
+
+    def d(self, baslik):
+        return a.degerlendir(baslik, "", self.AY, None, 2026)
+
+    def test_ilce_belediyesi_istanbul_sayilir(self):
+        for b in ["Beylikdüzü Belediyesi personel alacak", "Küçükçekmece Belediyesi mühendis alacak", "Şile Belediyesi alım"]:
+            self.assertEqual(a.iller_bul(b, a.fold(b)), ["İstanbul"], b)
+        for b in ["Tuzla'da tuz üretimi arttı", "Kartal gibi uçtu", "Fatih Sultan Mehmet hakkında"]:
+            self.assertEqual(a.iller_bul(b, a.fold(b)), [], b)
+
+    def test_izlenen_kurum(self):
+        self.assertTrue(self.d("Avcılar Belediyesi 20 personel alacak")["izlenen"])
+        self.assertTrue(self.d("Bathonea A.Ş. personel alımı yapacak")["izlenen"])
+        self.assertTrue(self.d("İBB iştirak şirketlerine 15 personel alınacak")["izlenen"])
+
+    def test_istanbul_ilce_belediyeleri_izlenir(self):
+        self.assertTrue(self.d("Beylikdüzü Belediyesi sözleşmeli mühendis alacak, KPSS")["izlenen"])
+        self.assertTrue(self.d("İstanbul Büyükşehir Belediyesi 100 personel alacak")["izlenen"])
+
+    def test_izlenmeyenler(self):
+        self.assertFalse(self.d("Kocaeli Belediyesi 20 personel alacak")["izlenen"])
+        self.assertFalse(self.d("İstanbul Üniversitesi 23 sözleşmeli personel alacak")["izlenen"])   # belediye değil
+
+    def test_izlenen_yalniz_baslikta_aranir(self):
+        d = a.degerlendir("Bakanlık 20 sözleşmeli personel alacak", "Avcılar Belediyesi ile protokol...", self.AY, None, 2026)
+        self.assertFalse(d["izlenen"])
+
+    def test_ayarsiz_izlenen_yok(self):
+        d = a.degerlendir("Avcılar Belediyesi 20 personel alacak", "", {"kpss_yillari": [2026], "engelli_iller": []}, None, 2026)
+        self.assertFalse(d["izlenen"])
+
+
 class Gercekler(unittest.TestCase):
     def g(self, metin):
         return a.gercekler(metin, a.fold(metin))

@@ -269,7 +269,7 @@ def ozet(ilan, ayar):
     return " · ".join(parcalar)
 
 
-EMOJI = {"guclu": "🔥", "olasi": "⚙️", "lisans": "📄"}
+EMOJI = {"guclu": "🔥", "olasi": "⚙️", "lisans": "📄", "toplu": "🏛️"}
 
 
 def bildirim_basligi(i):
@@ -278,6 +278,8 @@ def bildirim_basligi(i):
         return "🔥 Biyomedikal ilanı" + (" (KPSS'siz)" if kd == "yok" else " (KPSS'li)" if kd in ("var", "karma") else "")
     if i["seviye"] == "lisans":
         return "📄 Herhangi lisans · KPSS'li alım"
+    if i["seviye"] == "toplu":
+        return "🏛️ İzlediğin kurumda ilan"
     return "⚙️ Mühendis ilanı"
 
 
@@ -290,7 +292,8 @@ def bildir(konu, yeniler, ayar, sayfa_url, ilk):
         ntfy_gonder(konu, baslik, "\n".join(satirlar) + f"\n\nTümü: {sayfa_url}", tikla=sayfa_url, oncelik=3, etiketler=["briefcase"])
         return
     for i in yeniler:
-        oncelik, etiket = {"guclu": (4, "dart"), "olasi": (3, "gear"), "lisans": (2, "page_facing_up")}.get(i["seviye"], (3, "gear"))
+        oncelik, etiket = {"guclu": (4, "dart"), "olasi": (3, "gear"), "lisans": (2, "page_facing_up"),
+                           "toplu": (3, "classical_building")}.get(i["seviye"], (3, "gear"))
         ntfy_gonder(konu, bildirim_basligi(i), f"{i['baslik']}\n{ozet(i, ayar)}".strip(), tikla=i["url"],
                     oncelik=oncelik, etiketler=[etiket])
 
@@ -309,7 +312,8 @@ def yaz_json(yol, veri):
 
 
 def bildirilebilir(ilan, profil_elemesi, simdi, seviyeler=VARSAYILAN_BILDIRIM):
-    if ilan["seviye"] not in seviyeler or ilan["elendi"] or profil_elemesi:
+    izlenen = ilan.get("izlenen") and ilan["seviye"] != "dusuk"     # izlenen kurumdan her ilan (düşük ihtimal hariç)
+    if (ilan["seviye"] not in seviyeler and not izlenen) or ilan["elendi"] or profil_elemesi:
         return False
     if ilan["seviye"] == "olasi" and ilan["gercekler"].get("kpss_durum") == "yok":
         return False        # KPSS'siz genel mühendis ilanı: listede görünür, bildirim gelmez
@@ -320,9 +324,39 @@ def bildirilebilir(ilan, profil_elemesi, simdi, seviyeler=VARSAYILAN_BILDIRIM):
     return True
 
 
+def hatirlatma_bul(ayar, bugun, gonderilen):
+    """Tarihli hatırlatmalardan şimdi gönderilmesi gerekenleri döndürür.
+
+    Her hatırlatma için `gunler_once` (örn. [14, 3, 0]) günlerinden gelmiş olanların EN YAKINI tek bildirim olur;
+    akış o gün çalışmamış olsa da kaçan eski eşikler için ayrıca bildirim gönderilmez.
+    -> [(işaretlenecek_anahtarlar, başlık, mesaj, bağlantı)]"""
+    sonuc = []
+    for h in ayar.get("hatirlatmalar", []):
+        bas = dt.date.fromisoformat(h["baslangic"])
+        bit = dt.date.fromisoformat(h.get("bitis", h["baslangic"]))
+        if bugun > bit:
+            continue
+        uygun = sorted(g for g in h.get("gunler_once", [0]) if bugun >= bas - dt.timedelta(days=g))
+        if not uygun:
+            continue
+        anahtarlar = [f"{h['ad']}|{h['baslangic']}|{g}" for g in uygun]
+        if anahtarlar[0] in gonderilen:
+            continue
+        kalan = (bas - bugun).days
+        zaman = f"{kalan} gün kaldı" if kalan > 0 else "başladı"
+        aralik = f"{bas:%d.%m.%Y}" + (f" – {bit:%d.%m.%Y}" if bit != bas else "")
+        mesaj = f"{h['ad']}\n{aralik}" + (f"\n{h['not']}" if h.get("not") else "")
+        sonuc.append((anahtarlar, f"📅 {h['ad']}: {zaman}", mesaj, h.get("baglanti")))
+    return sonuc
+
+
+def simdi_al():
+    return dt.datetime.now(dt.timezone.utc)
+
+
 def calistir(kuru=False, sifirla=False):
     ayar = oku_json(KLASOR / "ayar.json", {})
-    simdi = dt.datetime.now(dt.timezone.utc)
+    simdi = simdi_al()
     bugun = simdi.date()
     konu = (os.environ.get("NTFY_TOPIC") or "").strip()
     if konu and not re.fullmatch(r"[A-Za-z0-9_-]{8,64}", konu):
@@ -381,6 +415,8 @@ def calistir(kuru=False, sifirla=False):
                 "gercekler": d["gercekler"], "elendi": d["elendi"]}
         if ayrinti is not None:
             ilan["ayrinti"] = ayrinti       # False: resmî ilanın ayrıntısı henüz alınamadı, yeniden denenecek
+        if d["izlenen"]:
+            ilan["izlenen"] = True
         return ilan, d
 
     simdi_s = simdi.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -390,7 +426,7 @@ def calistir(kuru=False, sifirla=False):
             continue
         gorulen[o["id"]] = gorulen[tk] = bugun.isoformat()
         tk_gorulen.add(tk)
-        if analiz.sinifla(o["baslik"], o["govde"], o.get("resmi", False)) is None:
+        if analiz.sinifla(o["baslik"], o["govde"], o.get("resmi", False), analiz.izlenen_mi(o["baslik"], ayar)) is None:
             continue
         govde, ayrinti = o["govde"], None
         guid = kk_guid(o["url"])
@@ -444,16 +480,19 @@ def calistir(kuru=False, sifirla=False):
     durum["gorulen"] = {k: v for k, v in gorulen.items() if v >= sinir}
 
     # 3) yaz (değişiklik yoksa dosyaya dokunma; ama KEEPALIVE_GUN'de bir kayıt yaz)
-    yeni_icerik = {"ilanlar": ilanlar, "kaynaklar": kaynak_durumlari}
-    eski_icerik = {"ilanlar": onceki.get("ilanlar", []), "kaynaklar": onceki.get("kaynaklar", [])}
+    ayar_yankisi = {k: ayar[k] for k in ("kpss_yillari", "tercih_iller", "yakin_iller", "engelli_iller")}
+    ayar_yankisi["hatirlatmalar"] = ayar.get("hatirlatmalar", [])
+    ayar_yankisi["izlenen"] = ayar.get("izlenen", {})
+    yeni_icerik = {"ilanlar": ilanlar, "kaynaklar": kaynak_durumlari, "ayar": ayar_yankisi}
+    eski_icerik = {"ilanlar": onceki.get("ilanlar", []), "kaynaklar": onceki.get("kaynaklar", []),
+                   "ayar": onceki.get("ayar", {})}
     son_kayit = dt.date.fromisoformat(durum.get("son_kayit", "2000-01-01"))
     degisti = yeni_icerik != eski_icerik or ilk
     if not kuru and (degisti or (bugun - son_kayit).days >= KEEPALIVE_GUN):
         yaz_json(VERI / "ilanlar.json", {
             "surum": 1, "guncelleme": simdi.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "baslangic": ayar["baslangic_tarihi"], "bitis": ayar["bitis_tarihi"], "depo": depo,
-            "ayar": {k: ayar[k] for k in ("kpss_yillari", "tercih_iller", "yakin_iller", "engelli_iller")},
-            "kaynaklar": kaynak_durumlari, "ilanlar": ilanlar})
+            "ayar": ayar_yankisi, "kaynaklar": kaynak_durumlari, "ilanlar": ilanlar})
         durum["son_kayit"] = bugun.isoformat()
         yaz_json(VERI / "durum.json", durum)
 
@@ -464,6 +503,23 @@ def calistir(kuru=False, sifirla=False):
             bildir(konu, yeniler, ayar, sayfa_url, ilk)
         except Exception as e:  # noqa: BLE001 - bildirim hatası veri kaydını bozmamalı
             print(f"UYARI: bildirim gönderilemedi: {e}")
+
+    # 5) tarihli hatırlatmalar (yalnızca başarıyla gönderilince "gönderildi" diye işaretlenir)
+    if konu and not kuru:
+        gonderilen = set(durum.get("hatirlatma", []))
+        degisti_h = False
+        for anahtarlar, baslik, mesaj, baglanti in hatirlatma_bul(ayar, bugun, gonderilen):
+            try:
+                ntfy_gonder(konu, baslik, mesaj, tikla=baglanti, oncelik=4, etiketler=["calendar"])
+            except Exception as e:  # noqa: BLE001
+                print(f"UYARI: hatırlatma gönderilemedi: {e}")
+                continue
+            print(f"Hatırlatma gönderildi: {baslik}")
+            gonderilen.update(anahtarlar)
+            degisti_h = True
+        if degisti_h:
+            durum["hatirlatma"] = sorted(gonderilen)[-100:]
+            yaz_json(VERI / "durum.json", durum)
     return "tamam"
 
 

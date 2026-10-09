@@ -63,6 +63,10 @@
   .cip.uyar { background: var(--uyar-bg); color: var(--uyar); }
   .cip.kotu { background: var(--kotu-bg); color: var(--kotu); }
   .neden { font-size: .8rem; color: var(--soluk); margin-top: 6px; }
+  .takvim { padding: 10px 14px; font-size: .88rem; }
+  .takvim h2 { font-size: .8rem; margin: 0 0 6px; color: var(--soluk); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .takvim .tarih { margin: 4px 0; }
+  .takvim .tarih b { color: var(--vurgu); }
   .bos { text-align: center; color: var(--soluk); padding: 28px 8px; }
   .dugme { padding: 10px 14px; border-radius: 8px; border: 1px solid var(--vurgu); background: var(--vurgu);
            color: var(--vurgu-yazi); cursor: pointer; font-weight: 600; text-decoration: none; display: inline-block; }
@@ -97,6 +101,8 @@
       </div>
     </div>
   </details>
+
+  <section class="kart takvim" id="takvim" hidden></section>
 
   <nav class="sekmeler" id="sekmeler" aria-label="İlan türleri"></nav>
   <input type="search" id="ara" placeholder="Ara: kurum, il, kelime…" aria-label="Ara">
@@ -215,14 +221,14 @@ function kova(i, d) {
     case "guclu": return kd === "yok" ? "biosiz" : "bio";
     case "lisans": return "lisans";
     case "olasi": return "muh";
-    case "toplu": return "toplu";
+    case "toplu": return i.izlenen ? "izlenen" : "toplu";
     default: return "diger";
   }
 }
 
 // ------------------------------------------------------------------ çizim
 const SEKMELER = [["bio", "Biyomedikal · KPSS'li"], ["biosiz", "Biyomedikal · KPSS'siz"], ["lisans", "Herhangi lisans"],
-                  ["muh", "Mühendis"], ["toplu", "Toplu alım"], ["elenen", "Elenenler"], ["diger", "Düşük ihtimal"]];
+                  ["muh", "Mühendis"], ["izlenen", "İzlediklerim"], ["toplu", "Toplu alım"], ["elenen", "Elenenler"], ["diger", "Düşük ihtimal"]];
 const SEVIYE = { guclu: "🔥 Biyomedikal", lisans: "📄 Herhangi lisans · KPSS'li", olasi: "⚙️ Mühendis", toplu: "📋 Toplu alım", dusuk: "▫️ Düşük ihtimal" };
 const AGIRLIK = { guclu: 0, olasi: 1, lisans: 2, toplu: 3, dusuk: 4 };
 let VERI = null, SEKME = LS.get("sekme-v2", null), SON_ZIYARET = LS.get("sonZiyaret", 0);
@@ -242,6 +248,7 @@ function kartYap(i, d) {
   const cipler = [
     ...d.iller.map(([il, tur]) => el("span", { class: "cip " + tur }, (tur === "iyi" ? "★ " : "") + il)),
     ...d.iyi.map((t) => el("span", { class: "cip iyi" }, t)),
+    ...(i.izlenen ? [el("span", { class: "cip iyi" }, "🏛️ İzlediğin kurum")] : []),
     ...d.notr.map((t) => el("span", { class: "cip" }, t)),
     ...d.uyar.map((t) => el("span", { class: "cip uyar" }, t)),
     ...d.red.map((t) => el("span", { class: "cip kotu" }, t)),
@@ -279,6 +286,27 @@ function ciz() {
     return;
   }
   liste.append(...secili.slice(0, 120).map((x) => kartYap(x.i, x.d)));
+}
+
+function takvimYaz() {
+  const kutu = $("#takvim");
+  kutu.replaceChildren();
+  const simdi = new Date();
+  const gun = (d) => d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+  const liste = ((VERI && VERI.ayar && VERI.ayar.hatirlatmalar) || [])
+    .map((h) => ({ h, bas: new Date(h.baslangic + "T00:00:00"), bit: new Date((h.bitis || h.baslangic) + "T23:59:59") }))
+    .filter((x) => x.bit >= simdi)
+    .sort((a, b) => a.bas - b.bas);
+  kutu.hidden = !liste.length;
+  if (!liste.length) return;
+  kutu.append(el("h2", null, "Yaklaşan tarihler"), ...liste.map(({ h, bas, bit }) => {
+    const kalan = Math.ceil((bas - simdi) / 86400000);
+    const aralik = h.bitis && h.bitis !== h.baslangic ? `${gun(bas)} – ${gun(bit)}` : gun(bas);
+    return el("div", { class: "tarih" }, "📅 ", el("b", null, h.ad), ` · ${aralik} · `,
+      kalan > 0 ? `${kalan} gün kaldı` : "devam ediyor",
+      h.not ? el("div", { class: "meta" }, h.not) : null,
+      h.baglanti && /^https?:\/\//.test(h.baglanti) ? el("div", { class: "meta" }, el("a", { href: h.baglanti, target: "_blank", rel: "noopener noreferrer" }, "ÖSYM duyuruları")) : null);
+  }));
 }
 
 function durumYaz() {
@@ -378,7 +406,7 @@ async function yukle() {
     $("#liste").replaceChildren(el("div", { class: "bos" }, "Henüz tarama verisi yok. İlk otomatik tarama GitHub Actions'ta çalışınca burada görünecek."));
     return;
   }
-  durumYaz(); ciz(); secretLinkiGuncelle();
+  durumYaz(); takvimYaz(); ciz(); secretLinkiGuncelle();
 }
 profilBagla();
 kurulumuBagla();

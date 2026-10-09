@@ -33,12 +33,23 @@ Sayfada ilanlar **ayrı sekmelerde** durur, birbirine karışmaz:
 | 🔥 Biyomedikal · KPSS'siz | Aynısı ama "KPSS'siz", "KPSS şartı aranmaz" gibi ifadeyle | evet (yüksek öncelik) |
 | 📄 Herhangi lisans | "Herhangi bir lisans mezunu" alımları, **KPSS'li** olanlar (bölüm şartı yok) | evet (düşük öncelik) |
 | ⚙️ Mühendis | Kamu mühendis ilanı, bölüm kısıtı görünmüyor | evet (KPSS'siz olanlar hariç) |
+| 🏛️ İzlediklerim | `izlenen` ayarındaki kurumlardan (Avcılar, Bathonea, İBB ve İstanbul ilçe belediyeleri) gelen her ilan | evet |
 | 📋 Toplu alım | Kurum toplu personel alıyor; kadro listesinde mühendis var mı elle bak | hayır |
 | Elenenler | Aşağıdaki şartlardan biri tutmadı, nedeniyle birlikte görünür | hayır |
 | Düşük ihtimal | Mühendis ilanı ama bölüm listesinde biyomedikal yok | hayır |
 
 Hangi sekmelerden bildirim geleceği `scraper/ayar.json` içindeki `bildirim_seviyeleri` ile değişir
 (`guclu`, `olasi`, `lisans`).
+
+**İzlenen kurumlar:** `ayar.json` içindeki `izlenen` bölümü, çalıştığın/izlediğin kurumları işaretler.
+`kurumlar` listesindeki bir ad (ör. "Avcılar") ilan başlığında geçerse ya da `belediye_illeri` listesindeki bir ilin
+(ör. İstanbul, ilçe belediyeleri dahil) belediyesi ilan verirse ilan "İzlediklerim" sekmesine düşer ve —KPSS ya da bölüm
+şartı aranmaksızın— bildirim gelir. Elenme şartları (2024 KPSS, doğu ili vb.) yine geçerlidir.
+
+**Tarihli hatırlatmalar:** `ayar.json` içindeki `hatirlatmalar`, bir tarih aralığından 14 gün ve 3 gün önce ile ilk gün
+bildirim gönderir (varsayılan: KPSS-2026/2 merkezi atama tercih dönemi, 17–24 Aralık 2026 — haberlere dayanıyor,
+ÖSYM'nin resmî duyurusuyla doğrulanmadı). Aynı eşik için bir kez bildirilir; gönderim başarısız olursa sonraki taramada
+yeniden denenir. Aralıklar sayfada "Yaklaşan tarihler" kartında da görünür.
 
 **Elenme şartları** (KPSS'siz ilanlarda KPSS şartları uygulanmaz, yaş ve il uygulanır):
 
