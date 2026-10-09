@@ -1,6 +1,6 @@
 {
  "surum": 1,
- "guncelleme": "2026-10-08T18:53:43Z",
+ "guncelleme": "2026-10-09T01:15:38Z",
  "baslangic": "2026-10-08",
  "bitis": "2028-10-08",
  "depo": "hakanerbasss/dokunmasiz-algilama",
@@ -134,6 +134,106 @@
   }
  ],
  "ilanlar": [
+  {
+   "id": "CBMiogFBVV95cUxQZ2FfUmRFbXhvZDF6V2FVeUxVdHlWemw1Wi1US1JfY1I0XzhIZ19DUUlsM2ZveHI1SkpjT1dIWWhFMXZIN3hVU2lLbTdQS3N0WEVOZDEyWUotWV9yS2FLc1F6S0k4UjBHc0dEa0JDRjVOV0dfVTd4Uk1aM0NkeTZEQm5hVXhBM0NPb0g0RlNKZlZKTjRENi03LU5ITkpMRXNtUlE",
+   "baslik": "Savunma Sanayii Başkanlığı 80 KPSS ile 22 Memur Alacak! 2026 KPSS Puanı İle",
+   "url": "https://news.google.com/rss/articles/CBMiogFBVV95cUxQZ2FfUmRFbXhvZDF6V2FVeUxVdHlWemw1Wi1US1JfY1I0XzhIZ19DUUlsM2ZveHI1SkpjT1dIWWhFMXZIN3hVU2lLbTdQS3N0WEVOZDEyWUotWV9yS2FLc1F6S0k4UjBHc0dEa0JDRjVOV0dfVTd4Uk1aM0NkeTZEQm5hVXhBM0NPb0g0RlNKZlZKTjRENi03LU5ITkpMRXNtUlE?oc=5",
+   "kaynak": "Google Haberler: biyomedikal mühendis alımı",
+   "tarih": "2026-10-08T21:08:02Z",
+   "ilk_gorulme": "2026-10-09T01:15:38Z",
+   "seviye": "toplu",
+   "nedenler": [
+    "Toplu personel alımı: kadro listesinde mühendis var mı bak"
+   ],
+   "gercekler": {
+    "kpss_durum": "var",
+    "kpss_yillari": [
+     2026
+    ],
+    "puan_turleri": {},
+    "genel_puanlar": [],
+    "yas_siniri": null,
+    "iller": [],
+    "ehliyet": false,
+    "bolumler": []
+   },
+   "elendi": []
+  },
+  {
+   "id": "CBMiswFBVV95cUxQWDJRNk51Nm9DS2F3ZGxSQVI4Y2tubHB0dVpXdFB3b2dPZ1A2X05KWUpLUVRYaUpnYUhEZS1YX1BaeDRWX242ZDZ6MjlOamhoZldXMnNpUHRXQXRDekZFVldmZm9HYW1ndV9kcExqZFN4SlhuRllEZkpOUGJFUWRDcmtrLUIwNXN3eDAxUnNwc3N3VDNUakdsYkd3WUhkdGRMNnBobXR4MFpuWlVxWGdnS016dw",
+   "baslik": "2026 KPSS Sonrası Gözler Yeni Alımlarda! Sağlık, POMEM ve Sözleşmeli Personelde Son Durum",
+   "url": "https://news.google.com/rss/articles/CBMiswFBVV95cUxQWDJRNk51Nm9DS2F3ZGxSQVI4Y2tubHB0dVpXdFB3b2dPZ1A2X05KWUpLUVRYaUpnYUhEZS1YX1BaeDRWX242ZDZ6MjlOamhoZldXMnNpUHRXQXRDekZFVldmZm9HYW1ndV9kcExqZFN4SlhuRllEZkpOUGJFUWRDcmtrLUIwNXN3eDAxUnNwc3N3VDNUakdsYkd3WUhkdGRMNnBobXR4MFpuWlVxWGdnS016dw?oc=5",
+   "kaynak": "Google Haberler: mühendis alımı KPSS 2026",
+   "tarih": "2026-10-08T20:46:34Z",
+   "ilk_gorulme": "2026-10-09T01:15:38Z",
+   "seviye": "toplu",
+   "nedenler": [
+    "Toplu personel alımı: kadro listesinde mühendis var mı bak"
+   ],
+   "gercekler": {
+    "kpss_durum": "var",
+    "kpss_yillari": [
+     2026
+    ],
+    "puan_turleri": {},
+    "genel_puanlar": [],
+    "yas_siniri": null,
+    "iller": [],
+    "ehliyet": false,
+    "bolumler": []
+   },
+   "elendi": []
+  },
+  {
+   "id": "CBMiigFBVV95cUxPcXB4Zkh2enJlc1QydF90eTdteVgzM19iNnlpZ19DMGJnRHE4Y0ItX2dVSGtxNVhYbU92UDNqTXF3Z1ZsUTNwQVY5NVR2S21OakRhd29IOW5HRDVrY1pPbGtSZFRSMllHU21IRXVKVlJwUm9KcmFUdnVGUzM4Z0xrVWZfbVpYd2dvX3c",
+   "baslik": "2026 KPSS Puanıyla Memur Alımı: 7 Kurumda 1.120 Kontenjan",
+   "url": "https://news.google.com/rss/articles/CBMiigFBVV95cUxPcXB4Zkh2enJlc1QydF90eTdteVgzM19iNnlpZ19DMGJnRHE4Y0ItX2dVSGtxNVhYbU92UDNqTXF3Z1ZsUTNwQVY5NVR2S21OakRhd29IOW5HRDVrY1pPbGtSZFRSMllHU21IRXVKVlJwUm9KcmFUdnVGUzM4Z0xrVWZfbVpYd2dvX3c?oc=5",
+   "kaynak": "Google Haberler: mühendis alımı KPSS 2026",
+   "tarih": "2026-10-08T19:30:22Z",
+   "ilk_gorulme": "2026-10-09T01:15:38Z",
+   "seviye": "toplu",
+   "nedenler": [
+    "Toplu personel alımı: kadro listesinde mühendis var mı bak"
+   ],
+   "gercekler": {
+    "kpss_durum": "var",
+    "kpss_yillari": [
+     2026
+    ],
+    "puan_turleri": {},
+    "genel_puanlar": [],
+    "yas_siniri": null,
+    "iller": [],
+    "ehliyet": false,
+    "bolumler": []
+   },
+   "elendi": []
+  },
+  {
+   "id": "CBMibkFVX3lxTE1iYjhJNlNfWU54RGJFcThMRk04ZHJUSUlIZ0lNYlpBeHlBSV9odmRxaFkxajIwejdjRE1pSlkzNFA0azNnU09aUWRVNGIxM19VT0MzZU5HSEM4RVA5M1JqaVRmU0t5VVgwOEdNTm9B",
+   "baslik": "ISUBÜ, 7 Sözleşmeli Personel Alacak - Isparta Haber | Isparta Son Dakika Haberleri",
+   "url": "https://news.google.com/rss/articles/CBMibkFVX3lxTE1iYjhJNlNfWU54RGJFcThMRk04ZHJUSUlIZ0lNYlpBeHlBSV9odmRxaFkxajIwejdjRE1pSlkzNFA0azNnU09aUWRVNGIxM19VT0MzZU5HSEM4RVA5M1JqaVRmU0t5VVgwOEdNTm9B?oc=5",
+   "kaynak": "Google Haberler: sözleşmeli mühendis alımı",
+   "tarih": "2026-09-16T07:00:00Z",
+   "ilk_gorulme": "2026-10-09T01:15:38Z",
+   "seviye": "toplu",
+   "nedenler": [
+    "Toplu personel alımı: kadro listesinde mühendis var mı bak"
+   ],
+   "gercekler": {
+    "kpss_durum": "belirsiz",
+    "kpss_yillari": [],
+    "puan_turleri": {},
+    "genel_puanlar": [],
+    "yas_siniri": null,
+    "iller": [
+     "Isparta"
+    ],
+    "ehliyet": false,
+    "bolumler": []
+   },
+   "elendi": []
+  },
   {
    "id": "CBMieEFVX3lxTE1JaS11ZF9zUW4wREU2T3JFUkxwVTRQSjFlTzFIWFhyR2hyc1Izd19KX1otYU9YZ05qaUo4SUR1TDBTazVpVlh6SWgxSTVqM3VMNHpMTS1xV2hPcHYwaS15RXF1UWtjQlRKRURJY0RKSlR5YU9nMUdZOQ",
    "baslik": "BDDK Sözleşmeli Personel Alımına Çıkıyor",
