@@ -32,7 +32,7 @@ Sayfada ilanlar **ayrı sekmelerde** durur, birbirine karışmaz:
 | 🔥 Biyomedikal · KPSS'li | Biyomedikal / tıp mühendisliği kadrosu, KPSS'li (sözleşmeli ya da kadrolu) | evet (yüksek öncelik) |
 | 🔥 Biyomedikal · KPSS'siz | Aynısı ama "KPSS'siz", "KPSS şartı aranmaz" gibi ifadeyle | evet (yüksek öncelik) |
 | 📄 Herhangi lisans | "Herhangi bir lisans mezunu" alımları, **KPSS'li** olanlar (bölüm şartı yok) | evet (düşük öncelik) |
-| ⚙️ Mühendis | Kamu mühendis ilanı, bölüm kısıtı görünmüyor | evet (KPSS'siz olanlar hariç) |
+| ⚙️ Mühendis | Kamu mühendis ilanı, bölüm kısıtı görünmüyor | yalnızca **ilan metni okunabildiyse** (başlıktan bölüm bilinemez; KPSS'siz olanlar hariç) |
 | 🏛️ İzlediklerim | `izlenen` ayarındaki kurumlardan (Avcılar, Bathonea, İBB ve İstanbul ilçe belediyeleri) gelen her ilan | evet |
 | 📋 Toplu alım | Kurum toplu personel alıyor; kadro listesinde mühendis var mı elle bak | hayır |
 | Elenenler | Aşağıdaki şartlardan biri tutmadı, nedeniyle birlikte görünür | hayır |
@@ -93,7 +93,12 @@ Profilin yalnızca telefonundaki tarayıcıda durur. Bildirimlerin de puana/yaş
 
 ## Sınırlar
 
-- Sınıflandırma **otomatik ve sezgiseldir**. Google Haberler için yalnızca başlık okunur; bir ilan kaçabilir ya da gereksiz çıkabilir.
+- **İlan metni her zaman okunamaz.** Google Haberler yalnızca başlık verir (haber sayfasına ulaşmaya çalışınca Google
+  429 hatası veriyor) ve Kariyer Kapısı ilanlarının içeriği de okunamıyor. Bu ilanlar "Metin okunamadı" uyarısıyla
+  görünür. Başlığında yalnızca "mühendis" yazan bir ilan için bildirim **gönderilmez**, çünkü bölüm şartı (ör. "İnşaat
+  Mühendisliği") ve asgari puan metinde yazar. Başlığında "biyomedikal" geçen ilanlar ise bildirilir, mesajda
+  "metin okunamadı" uyarısıyla.
+- Sınıflandırma **otomatik ve sezgiseldir**. Bir ilan kaçabilir ya da gereksiz çıkabilir.
   Başvurmadan önce ilanın kendisini, KPSS yılını, puan türünü ve bölüm şartını mutlaka oku.
 - Eleme yalnızca ilan metninde yazanı bilir. Metinde olmayan bir şart (ör. deneyim) kontrol edilmez.
 - 2 yıl dolunca (`bitis_tarihi`) son bir bildirim gelir ve zamanlayıcı kendini kapatır. Uzatmak için tarihi ileri al ve

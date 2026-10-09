@@ -210,6 +210,7 @@ function degerlendir(i, p, ayar) {
   if (g.kpss_durum === "yok") iyi.push("KPSS'siz");
   if (g.kpss_durum === "karma") notr.push("KPSS'siz de olabilir");
   if (i.ayrinti === false) uyar.push("Ayrıntı alınamadı — ilanı açıp kadro listesine bak");
+  else if (i.metin_yok && ["guclu", "olasi", "lisans"].includes(i.seviye)) uyar.push("Metin okunamadı — bölüm ve puan şartını ilanda kontrol et");
   const tercih = new Set(ayar.tercih_iller || []), yakin = new Set(ayar.yakin_iller || []), engel = new Set(ayar.engelli_iller || []);
   for (const il of g.iller || []) iller.push([il, tercih.has(il) ? "iyi" : yakin.has(il) ? "" : engel.has(il) ? "kotu" : ""]);
   return { red, uyar, iyi, notr, iller };
