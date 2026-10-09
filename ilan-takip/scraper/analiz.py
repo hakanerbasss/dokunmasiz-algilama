@@ -38,6 +38,8 @@ BRANS = re.compile(r"((?:(?:%s)\w*[\s\-/,]*(?:ve\s+)?)+)muhendis" % _BRANS_AD)
 PUBLIC = re.compile(r"kpss|kamu|bakanlig|universite|rektorlug|belediye|baskanlig|genel mudurlug|valilig|"
                     r"\bkurumu|hastane|tubitak|tuseb|titck|devlet|sozlesmeli|memur")
 SONUC = re.compile(r"\bsonuc|resmi gazete karar")
+# Bu kadrolarda genelde yaş sınırı ve fiziki şart bulunur (başlık yaşı söylemese de uyarılır).
+YAS_RISKLI = re.compile(r"zabita|itfaiye|koruma ve guvenlik|guvenlik gorevlisi|bekci|polis|jandarma|infaz")
 TAHMIN = re.compile(r"ne zaman|\bmi\b|\bmu\b|\?|nasil|nereden|tarihi belli|bekleniyor|gundemi")
 TOPLU_HARIC = re.compile(r"akademik|ogretim uyesi|ogretim gorevlisi|arastirma gorevlisi|profesor|docent|"
                          r"bekci|temizlik|guvenlik gorevlisi|koruma ve guvenlik|itfaiye|zabita|infaz|"
@@ -157,12 +159,16 @@ def puan_turleri(tum):
 
 
 def genel_puanlar(tum):
-    """Puan türü belirtilmeden geçen "65 puanla", "50-59 puanla" gibi taban puanlar."""
+    """Puan türü belirtilmeden geçen asgari puanlar: "65 puanla", "50-59 puanla", "65 KPSS ile", "KPSS 70 puan".
+    Yıllar ("2026 KPSS", "KPSS-2026/2"), puan türü numaraları (P93) ve 4/B sayılmaz."""
     bulunan = []
-    for m in re.finditer(r"(?<![\d.,/p])(\d{2})(?:\s*-\s*(\d{2}))?\s*puan(?:la|i|in|a)?\b", tum):
-        for g in m.groups():
-            if g and 40 <= int(g) <= 100:
-                bulunan.append(int(g))
+    desenler = (r"(?<![\d.,/p])(\d{2})(?:\s*-\s*(\d{2}))?(?!\d)\s*(?:puan(?:la|i|in|a)?\b|kpss)",
+                r"kpss\s*(?:puani\s*)?(?<![\d])(\d{2})(?:\s*-\s*(\d{2}))?(?![\d/])")
+    for rx in desenler:
+        for m in re.finditer(rx, tum):
+            for g in m.groups():
+                if g and 40 <= int(g) <= 100:
+                    bulunan.append(int(g))
     return sorted(set(bulunan))
 
 
@@ -198,6 +204,7 @@ def gercekler(orijinal, tum):
         "puan_turleri": puan_turleri(tum),
         "genel_puanlar": genel_puanlar(tum),
         "yas_siniri": yas_siniri(tum),
+        "yas_riski": bool(YAS_RISKLI.search(tum)),
         "iller": iller_bul(orijinal, tum),
         "ehliyet": bool(re.search(r"surucu belgesi|ehliyet", tum)),
         "bolumler": branslar(tum),
@@ -295,7 +302,7 @@ def egitim_elemesi(tum):
 def profilsiz_elemeler(baslik, govde, g, ayar):
     """Kişisel bilgi gerektirmeyen kesin elemeler (ilanlar.json'a yazılır)."""
     tum = fold(baslik + " " + (govde or "")[:GOVDE_SINIRI])
-    kpssiz = g["kpss_durum"] == "yok"        # KPSS istemeyen ilanda KPSS yılı eleme nedeni olamaz
+    kpssiz = g["kpss_durum"] in ("yok", "karma")        # KPSS'siz yoldan da başvurulabiliyorsa KPSS yılı eleme nedeni olamaz
     return [e for e in (None if kpssiz else kpss_yili_elemesi(g, ayar), il_elemesi(g, ayar), egitim_elemesi(tum)) if e]
 
 
@@ -305,7 +312,8 @@ def profil_elemeleri(g, profil, yil):
         return []
     nedenler = []
     puan = profil.get("puanlar") or {}
-    turler = {} if g["kpss_durum"] == "yok" else g["puan_turleri"]
+    kpsssiz_yol = g["kpss_durum"] in ("yok", "karma")      # KPSS'siz da başvurulabiliyorsa puan eleme nedeni olamaz
+    turler = {} if kpsssiz_yol else g["puan_turleri"]
     if turler and puan:
         # İlan lisans/önlisans/ortaöğretim için ayrı puan türleri sayabilir (P3, P93, P94);
         # yalnızca sahip olduklarımıza bakılır.
@@ -315,6 +323,10 @@ def profil_elemeleri(g, profil, yil):
         elif all(mn is not None and puan[t] < mn for t, mn in sahip.items()):
             t, mn = next(iter(sahip.items()))
             nedenler.append(f"KPSS{t} en az {mn:g} isteniyor (sende {puan[t]:g})")
+    if not turler and not kpsssiz_yol and g["genel_puanlar"] and puan:
+        en, alt = max(puan.values()), min(g["genel_puanlar"])      # "KPSS 60-70": en düşük kadro eşiği 60
+        if en < alt:
+            nedenler.append(f"KPSS en az {alt} isteniyor (en yüksek puanın {en:g})")
     if g["yas_siniri"] and profil.get("dogum_yili"):
         en_kucuk_yas = yil - int(profil["dogum_yili"]) - 1
         if en_kucuk_yas >= g["yas_siniri"]:

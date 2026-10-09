@@ -503,6 +503,42 @@ class IzlenenKurum(Taban):
         self.assertTrue(kayit["https://haber.test/1"]["izlenen"])
         self.assertNotIn("izlenen", kayit["https://haber.test/2"])
 
+    SILE = ("Şile Belediyesi 6 Memur Alacak! Ön Lisans ve Lisans 65 KPSS ile Başvurabilecek", "https://haber.test/40", "")
+
+    def test_profil_secret_varsa_puani_yetmeyen_izlenen_ilan_bildirilmez(self):
+        self.sayfalar["https://haber.test/feed"] = rss(self.SILE)
+        with mock.patch.dict(os.environ, {"PROFIL_JSON": json.dumps({"dogum_yili": 1988, "puanlar": {"P3": 63.9}})}):
+            tara.calistir()
+        self.assertEqual(self.bildirimler, [])
+        kayit = self.ilanlar()["ilanlar"][0]
+        self.assertEqual(kayit["gercekler"]["genel_puanlar"], [65])          # sayfada "Elenenler"e düşecek (puan sayfada karşılaştırılır)
+        self.assertNotIn("63.9", (self.veri / "ilanlar.json").read_text(encoding="utf-8"))
+
+    def test_profil_secret_yoksa_bildirilir_ama_esik_mesajda_gorunur(self):
+        self.sayfalar["https://haber.test/feed"] = rss(self.SILE)
+        tara.calistir()
+        self.assertEqual(len(self.bildirimler), 1)
+        (konu, baslik, mesaj), kw = self.bildirimler[0]
+        self.assertIn("KPSS taban ≥ 65", mesaj)
+        self.assertNotIn("etiketler", kw)                                    # başlıkta emoji var, etiket çift emoji yapardı
+
+    def test_zabita_ilaninda_yas_uyarisi(self):
+        self.sayfalar["https://haber.test/feed"] = rss(
+            ("Üsküdar Belediyesi 15 Memur ve Zabıta Memuru Alacak", "https://haber.test/41", ""))
+        tara.calistir()
+        self.assertIn("yaş/fiziki şart olabilir", self.bildirimler[0][0][2])
+
+    def test_eski_kayitlarin_gercekleri_tazelenir(self):
+        d = self.ilanlar()
+        taban = {"nedenler": [], "elendi": [], "tarih": None, "seviye": "belediye", "ilk_gorulme": "2026-10-08T00:00:00Z",
+                 "gercekler": {"kpss_durum": "belirsiz", "kpss_yillari": [], "puan_turleri": {}, "genel_puanlar": [],
+                               "yas_siniri": None, "iller": [], "ehliyet": False, "bolumler": []}}
+        d["ilanlar"] = [{**taban, "id": "e1", "baslik": self.SILE[0], "url": "https://news.google.com/rss/articles/e1",
+                         "kaynak": "Google Haberler: belediye memur alımı"}]
+        (self.veri / "ilanlar.json").write_text(json.dumps(d), encoding="utf-8")
+        tara.calistir()
+        self.assertEqual([i for i in self.ilanlar()["ilanlar"] if i["id"] == "e1"][0]["gercekler"]["genel_puanlar"], [65])
+
     def test_izlenen_kurum_elenmisse_bildirilmez(self):
         self.sayfalar["https://haber.test/feed"] = rss(
             ("Avcılar Belediyesi 2024 KPSS ile personel alacak", "https://haber.test/3", ""))

@@ -140,6 +140,40 @@ class Kategoriler(unittest.TestCase):
         self.assertEqual(sev("Belediye KPSS ile mühendis alacak, diğer kadrolara herhangi bir lisans mezunu"), "olasi")
 
 
+class BaslikPuani(unittest.TestCase):
+    """Başlıkta "65 KPSS ile" gibi puan türü belirtilmeyen asgari puanlar."""
+    PROFIL = {"dogum_yili": 1988, "puanlar": {"P1": 64.65, "P2": 64.34, "P3": 63.92}}
+
+    def g(self, t):
+        return a.gercekler(t, a.fold(t))
+
+    def test_basliktan_asgari_puan(self):
+        self.assertEqual(self.g("Şile Belediyesi 6 Memur Alacak! Ön Lisans ve Lisans 65 KPSS ile Başvurabilecek")["genel_puanlar"], [65])
+        self.assertEqual(self.g("Ankara Üniversitesi 60 KPSS ile 103 Personel Alacak")["genel_puanlar"], [60])
+        self.assertEqual(self.g("İETT memur alımı yapacak: KPSS 70 puan şartı")["genel_puanlar"], [70])
+        self.assertEqual(self.g("KPSS 60-70 Puanlarla Devlet Personeli Alımı")["genel_puanlar"], [60, 70])
+
+    def test_yil_ve_diger_sayilar_puan_sayilmaz(self):
+        for t in ["2026 KPSS 4-B Kamu Personel Alım Başvuruları Alınacak", "KPSS-2026/2 merkezi atama",
+                  "Esenyurt Belediyesi Personel Alımı 2026: KPSS, Kadrolar", "KPSS P93 puan türü, 12 personel"]:
+            self.assertEqual(self.g(t)["genel_puanlar"], [], t)
+
+    def test_asgari_puan_en_yuksek_puandan_yuksekse_elenir(self):
+        g = self.g("Şile Belediyesi 6 Memur Alacak! Ön Lisans ve Lisans 65 KPSS ile Başvurabilecek")
+        self.assertIn("KPSS en az 65 isteniyor (en yüksek puanın 64.65)", a.profil_elemeleri(g, self.PROFIL, 2026))
+        self.assertEqual(a.profil_elemeleri(self.g("Ankara Üniversitesi 60 KPSS ile 103 Personel Alacak"), self.PROFIL, 2026), [])
+        self.assertEqual(a.profil_elemeleri(self.g("KPSS 60-70 Puanlarla Personel Alımı"), self.PROFIL, 2026), [])   # en düşük eşik 60
+
+    def test_kpsssiz_ilanda_puan_elemesi_yok(self):
+        g = self.g("KPSS'siz belediye işçi alımı, 70 puan üstü KPSS sahibi tercih edilir")
+        self.assertEqual(a.profil_elemeleri(g, self.PROFIL, 2026), [])
+
+    def test_yas_riskli_kadrolar(self):
+        self.assertTrue(self.g("Üsküdar Belediyesi 15 Memur ve Zabıta Memuru Alacak")["yas_riski"])
+        self.assertTrue(self.g("Belediye itfaiye eri alacak")["yas_riski"])
+        self.assertFalse(self.g("Belediye 5 büro memuru alacak")["yas_riski"])
+
+
 class Izlenen(unittest.TestCase):
     AY = {"kpss_yillari": [2026], "engelli_iller": [],
           "izlenen": {"kurumlar": ["Avcılar", "Bathonea", "İBB"], "belediye_illeri": ["İstanbul"]}}

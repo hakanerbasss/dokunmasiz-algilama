@@ -268,6 +268,10 @@ def ozet(ilan, ayar):
         parcalar.append("KPSS'siz")
     for tur, mn in g["puan_turleri"].items():
         parcalar.append(f"KPSS{tur}" + (f" ≥ {mn:g}" if mn else ""))
+    if not g["puan_turleri"] and g.get("genel_puanlar"):
+        parcalar.append(f"KPSS taban ≥ {min(g['genel_puanlar'])}")
+    if g.get("yas_riski") and not g["yas_siniri"]:
+        parcalar.append("yaş/fiziki şart olabilir")
     if g["yas_siniri"]:
         parcalar.append(f"yaş < {g['yas_siniri']}")
     return " · ".join(parcalar)
@@ -301,7 +305,7 @@ def bildir(konu, yeniler, ayar, sayfa_url, ilk):
                            "profil": (3, "classical_building")}.get(i["seviye"], (3, "gear"))
         uyari = "\n⚠ İlan metni okunamadı; bölüm ve puan şartını ilanda kontrol et." if i.get("metin_yok") else ""
         ntfy_gonder(konu, bildirim_basligi(i), f"{i['baslik']}\n{ozet(i, ayar)}{uyari}".strip(), tikla=i["url"],
-                    oncelik=oncelik, etiketler=[etiket])
+                    oncelik=oncelik)             # başlıkta zaten emoji var; etiket eklenirse çift görünür
 
 
 # ---------------------------------------------------------------- ana akış
@@ -410,6 +414,14 @@ def calistir(kuru=False, sifirla=False):
     # 2) çözümle
     onceki = oku_json(VERI / "ilanlar.json", {})
     ilanlar = [] if sifirla else copy.deepcopy(onceki.get("ilanlar", []))
+    tazelendi = False
+    for i in ilanlar:       # sonradan eklenen gerçekler (genel puan, yaş riski): metni okunamayan ilanlarda başlıktan hesaplanır
+        if i.get("metin_yok") or i["kaynak"].startswith("Google Haberler"):
+            yeni_g = analiz.gercekler(i["baslik"], analiz.fold(i["baslik"]))
+            for k in ("genel_puanlar", "yas_riski"):
+                if yeni_g[k] and i["gercekler"].get(k) != yeni_g[k]:
+                    i["gercekler"][k] = yeni_g[k]
+                    tazelendi = True
     for i in ilanlar:       # bu bayraktan önce kaydedilmiş ilanlar: Google Haberler ve Kariyer Kapısı yalnızca başlık verir
         if "metin_yok" not in i and (i["kaynak"].startswith("Google Haberler") or kk_guid(i["url"])):
             i["metin_yok"] = True
@@ -513,7 +525,7 @@ def calistir(kuru=False, sifirla=False):
     bekleme_doldu = (simdi - son_yazma) >= dt.timedelta(hours=YAZMA_ARALIGI_SAAT)
     # Bildirilen/önemli ilan, ayar ya da kaynak durumu değişince hemen; yalnızca önemsiz ilan eklendiyse
     # en fazla YAZMA_ARALIGI_SAAT'te bir yazılır (depo büyümesini sınırlar). Önemsiz ilanlar bir sonraki yazmada eklenir.
-    degisti = ilk or onemli or yapi_degisti or (yeni_icerik != eski_icerik and bekleme_doldu)
+    degisti = ilk or onemli or yapi_degisti or tazelendi or (yeni_icerik != eski_icerik and bekleme_doldu)
     if not kuru and (degisti or (bugun - son_kayit).days >= KEEPALIVE_GUN):
         yaz_json(VERI / "ilanlar.json", {
             "surum": 1, "guncelleme": simdi.strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -537,7 +549,7 @@ def calistir(kuru=False, sifirla=False):
         degisti_h = False
         for anahtarlar, baslik, mesaj, baglanti in hatirlatma_bul(ayar, bugun, gonderilen):
             try:
-                ntfy_gonder(konu, baslik, mesaj, tikla=baglanti, oncelik=4, etiketler=["calendar"])
+                ntfy_gonder(konu, baslik, mesaj, tikla=baglanti, oncelik=4)
             except Exception as e:  # noqa: BLE001
                 print(f"UYARI: hatırlatma gönderilemedi: {e}")
                 continue

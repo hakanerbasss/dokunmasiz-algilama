@@ -108,6 +108,19 @@ Kaynakların çalışıp çalışmadığı sayfadaki *Kaynak sağlığı* bölü
 > `ilan.gov.tr` sertifika zinciri eksik olduğu için doğrulanamıyor; Resmî Gazete'ye erişilemedi. İkisi için
 > sayfadaki *Elle kontrol et* bağlantılarını kullan.
 
+## Bildirimleri puana ve yaşa göre süzmek (PROFIL_JSON)
+
+Puanların ve doğum yılın yalnızca telefondaki sayfada durur; **sunucu bunları bilmez.** Bu yüzden `PROFIL_JSON` gizli
+anahtarı eklenmedikçe bildirimler puana/yaşa bakmaz ("65 KPSS ile" diyen bir ilan için de haber gelir). Sayfada o ilan
+yine "Elenenler"e düşer. Süzgeç için sayfadaki *PROFIL_JSON değerini kopyala* düğmesiyle değeri alıp
+Settings → Secrets and variables → Actions → *New repository secret* (ad: `PROFIL_JSON`) olarak ekle.
+
+Süzgeç ilanda yazan şartlara bakar: başlıkta ya da metinde asgari puan ("65 KPSS", "KPSS 70 puan", "en az 75 puan"),
+puan türü ("KPSSP3 en az 70") ve yaş sınırı ("35 yaşını doldurmamış"). Başlık bunları söylemiyorsa şart bilinemez:
+bildirim yine gelir, mesajda bulunan eşik ("KPSS taban ≥ 65") yazar. Zabıta, itfaiye, koruma-güvenlik gibi kadrolarda yaş
+sınırı ve fiziki şart genelde bulunduğu için "yaş/fiziki şart olabilir" uyarısı eklenir. "KPSS'siz de olabilir" diyen
+ilanlarda puan eleme nedeni sayılmaz.
+
 ## Gizlilik
 
 Depo herkese açık olduğu için **puanların, doğum yılın ve TC kimlik numaran depoya yazılmaz.**
