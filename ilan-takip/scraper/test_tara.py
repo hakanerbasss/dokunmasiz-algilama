@@ -18,6 +18,9 @@ AYAR = {
 }
 
 
+UZUN = " Başvuru şartları ve kadro bilgileri ilan metninde ayrıntılı olarak yer almaktadır." * 4   # >= 200 karakter
+
+
 def rss(*ogeler):
     simdi = format_datetime(dt.datetime.now(dt.timezone.utc))
     govdeler = []
@@ -111,7 +114,7 @@ class Taban(unittest.TestCase):
 class Akis(Taban):
     def test_ilk_calisma_ozet_bildirir(self):
         self.sayfalar["https://haber.test/feed"] = rss(
-            ("Kocaeli Üniversitesi mühendis alacak, KPSS şartı", "https://haber.test/1", ""),
+            ("Kocaeli Üniversitesi mühendis alacak, KPSS şartı", "https://haber.test/1", UZUN),
             ("Jaguar yeni model tanıttı", "https://haber.test/2", ""))
         self.sayfalar["https://kurum.test/"] = SAYFA
         self.assertEqual(tara.calistir(), "tamam")
@@ -155,14 +158,14 @@ class Akis(Taban):
         self.assertTrue(tum["https://haber.test/5"]["elendi"])
 
     def test_profil_secret_puani_tutmayani_bildirmez(self):
-        self.sayfalar["https://haber.test/feed"] = rss(("Kocaeli KPSS mühendis alımı", "https://haber.test/9", "KPSSP3 puan türünden en az 70 puan"))
+        self.sayfalar["https://haber.test/feed"] = rss(("Kocaeli KPSS mühendis alımı", "https://haber.test/9", "KPSSP3 puan türünden en az 70 puan." + UZUN))
         self.sayfalar["https://kurum.test/"] = SAYFA
         tara.calistir()                                                   # ilk çalışma (özet)
         self.bildirimler.clear()
         self.sayfalar["https://haber.test/feed"] = rss(
-            ("Kocaeli KPSS mühendis alımı", "https://haber.test/9", "KPSSP3 puan türünden en az 70 puan"),
-            ("Tekirdağ KPSS mühendis alımı", "https://haber.test/10", "KPSSP3 puan türünden en az 70 puan"),
-            ("Zonguldak KPSS mühendis alımı", "https://haber.test/11", "KPSSP3 en az 60 puan"))
+            ("Kocaeli KPSS mühendis alımı", "https://haber.test/9", "KPSSP3 puan türünden en az 70 puan." + UZUN),
+            ("Tekirdağ KPSS mühendis alımı", "https://haber.test/10", "KPSSP3 puan türünden en az 70 puan." + UZUN),
+            ("Zonguldak KPSS mühendis alımı", "https://haber.test/11", "KPSSP3 en az 60 puan." + UZUN))
         with mock.patch.dict(os.environ, {"PROFIL_JSON": json.dumps({"dogum_yili": 1988, "puanlar": {"P3": 63.9}})}):
             tara.calistir()
         self.assertEqual([k["tikla"] for _, k in self.bildirimler], ["https://haber.test/11"])
@@ -311,6 +314,50 @@ class Kategoriler(Taban):
         once = self.ilanlar()["kaynaklar"]
         tara.calistir()                      # yeni ilan yok, yeniden deneme API'yi çağırır ve yine hata alır
         self.assertEqual(self.ilanlar()["kaynaklar"], once)
+
+    def test_metni_okunamayan_genel_muhendis_ilani_bildirilmez(self):
+        # Gerede Belediyesi örneği: başlıkta yalnızca "mühendis" var, metinde "İnşaat Mühendisliği" ve "en az 75 puan"
+        self.sayfalar["https://haber.test/feed"] = rss(
+            ("GEREDE BELEDİYESİ SÖZLEŞMELİ MÜHENDİS ALACAK", "https://haber.test/30", ""))
+        tara.calistir()
+        self.assertEqual(self.bildirimler, [])
+        ilan = [i for i in self.ilanlar()["ilanlar"] if "GEREDE" in i["baslik"]][0]
+        self.assertEqual(ilan["seviye"], "olasi")
+        self.assertTrue(ilan["metin_yok"])                                     # listede görünür, "metin okunamadı" etiketiyle
+
+    def test_metni_okunan_muhendis_ilani_bildirilir(self):
+        self.sayfalar["https://haber.test/feed"] = rss(
+            ("Belediye sözleşmeli mühendis alacak, KPSS", "https://haber.test/31", "Mühendislik fakültesi mezunu olmak." + UZUN))
+        tara.calistir()
+        self.assertEqual(len(self.bildirimler), 1)
+        self.assertNotIn("metin_yok", self.ilanlar()["ilanlar"][0])
+
+    def test_metinde_insaat_sarti_varsa_bildirilmez(self):
+        govde = "İnşaat Mühendisliği bölümü mezunu olmak. 2026 KPSS P3 puanından en az 75 puan." + UZUN
+        self.sayfalar["https://haber.test/feed"] = rss(("Gerede Belediyesi sözleşmeli mühendis alacak", "https://haber.test/32", govde))
+        tara.calistir()
+        self.assertEqual(self.bildirimler, [])
+        self.assertEqual(self.ilanlar()["ilanlar"][0]["seviye"], "dusuk")      # bölüm listesinde biyomedikal yok
+
+    def test_biyomedikal_basliktan_bildirilir_ama_uyari_eklenir(self):
+        self.sayfalar["https://haber.test/feed"] = rss(
+            ("Üniversite KPSS ile sözleşmeli biyomedikal mühendisi alacak", "https://haber.test/33", ""))
+        tara.calistir()
+        self.assertEqual(len(self.bildirimler), 1)
+        mesaj = self.bildirimler[0][0][2]
+        self.assertIn("⚠ İlan metni okunamadı", mesaj)
+
+    def test_eski_kayitlar_metin_yok_bayragini_alir(self):
+        self.sayfalar["https://haber.test/feed"] = rss(("Jaguar yeni model tanıttı", "https://haber.test/0", ""))
+        d = self.ilanlar()
+        d["ilanlar"] = [{"id": "eski1", "baslik": "Eski ilan mühendis", "url": "https://news.google.com/rss/articles/x",
+                         "kaynak": "Google Haberler: sözleşmeli mühendis alımı", "tarih": None, "ilk_gorulme": "2026-10-01T00:00:00Z",
+                         "seviye": "olasi", "nedenler": [], "elendi": [],
+                         "gercekler": {"kpss_durum": "belirsiz", "kpss_yillari": [], "puan_turleri": {}, "genel_puanlar": [],
+                                       "yas_siniri": None, "iller": [], "ehliyet": False, "bolumler": []}}]
+        (self.veri / "ilanlar.json").write_text(json.dumps(d), encoding="utf-8")
+        tara.calistir()
+        self.assertTrue([i for i in self.ilanlar()["ilanlar"] if i["id"] == "eski1"][0]["metin_yok"])     # dosya yeniden yazılmış
 
     def test_kpsssiz_biyomedikal_ayri_baslikla_bildirilir(self):
         self.sayfalar["https://haber.test/feed"] = rss(

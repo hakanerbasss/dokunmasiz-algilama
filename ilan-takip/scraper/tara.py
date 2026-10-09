@@ -8,6 +8,7 @@ Ortam değişkenleri (hepsi isteğe bağlı):
   VERI_DIZINI  data/ yerine başka bir klasöre yaz (yerel deneme).
 Bayraklar: --kuru (yazma/bildirim yok, sadece yazdır), --sifirla (görülenleri unut).
 """
+import copy
 import datetime as dt
 import gzip
 import hashlib
@@ -41,6 +42,7 @@ KK_ILAN = re.compile(r"^https://kariyerkapisi\.gov\.tr/IlanDetay\?i=([0-9a-fA-F-
 KK_DURUM_AD = "Kariyer Kapısı ilan ayrıntıları (API)"
 KK_TEKRAR_GUN = 21         # ayrıntısı alınamayan resmî ilanlar için yeniden deneme süresi
 VARSAYILAN_BILDIRIM = ("guclu", "olasi", "lisans")
+METIN_ESIGI = 200          # bundan kısa metin "okunamadı" sayılır (Google Haberler yalnızca başlık verir)
 
 
 # ---------------------------------------------------------------- ağ ve ayrıştırma
@@ -294,7 +296,8 @@ def bildir(konu, yeniler, ayar, sayfa_url, ilk):
     for i in yeniler:
         oncelik, etiket = {"guclu": (4, "dart"), "olasi": (3, "gear"), "lisans": (2, "page_facing_up"),
                            "toplu": (3, "classical_building")}.get(i["seviye"], (3, "gear"))
-        ntfy_gonder(konu, bildirim_basligi(i), f"{i['baslik']}\n{ozet(i, ayar)}".strip(), tikla=i["url"],
+        uyari = "\n⚠ İlan metni okunamadı; bölüm ve puan şartını ilanda kontrol et." if i.get("metin_yok") else ""
+        ntfy_gonder(konu, bildirim_basligi(i), f"{i['baslik']}\n{ozet(i, ayar)}{uyari}".strip(), tikla=i["url"],
                     oncelik=oncelik, etiketler=[etiket])
 
 
@@ -317,6 +320,8 @@ def bildirilebilir(ilan, profil_elemesi, simdi, seviyeler=VARSAYILAN_BILDIRIM):
         return False
     if ilan["seviye"] == "olasi" and ilan["gercekler"].get("kpss_durum") == "yok":
         return False        # KPSS'siz genel mühendis ilanı: listede görünür, bildirim gelmez
+    if ilan["seviye"] == "olasi" and ilan.get("metin_yok"):
+        return False        # genel "mühendis" ilanı metni okunmadan bildirilmez: çoğu belirli bir bölüm ister (ör. İnşaat)
     if ilan["tarih"]:
         yas = simdi - dt.datetime.strptime(ilan["tarih"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
         if yas.days > BILDIRIM_GUN:
@@ -401,7 +406,10 @@ def calistir(kuru=False, sifirla=False):
 
     # 2) çözümle
     onceki = oku_json(VERI / "ilanlar.json", {})
-    ilanlar = [] if sifirla else list(onceki.get("ilanlar", []))
+    ilanlar = [] if sifirla else copy.deepcopy(onceki.get("ilanlar", []))
+    for i in ilanlar:       # bu bayraktan önce kaydedilmiş ilanlar: Google Haberler ve Kariyer Kapısı yalnızca başlık verir
+        if "metin_yok" not in i and (i["kaynak"].startswith("Google Haberler") or kk_guid(i["url"])):
+            i["metin_yok"] = True
     seviyeler = tuple(ayar.get("bildirim_seviyeleri", VARSAYILAN_BILDIRIM))
     tk_gorulen = {k for k in gorulen if k.startswith("t:")}
     yeniler, detay, kk = [], 0, KkApi(bool(ayar.get("kk_api", False)))
@@ -417,6 +425,8 @@ def calistir(kuru=False, sifirla=False):
             ilan["ayrinti"] = ayrinti       # False: resmî ilanın ayrıntısı henüz alınamadı, yeniden denenecek
         if d["izlenen"]:
             ilan["izlenen"] = True
+        if len((govde or "").strip()) < METIN_ESIGI:
+            ilan["metin_yok"] = True        # yalnızca başlıkla sınıflandı: bölüm/puan şartı bilinmiyor
         return ilan, d
 
     simdi_s = simdi.strftime("%Y-%m-%dT%H:%M:%SZ")
