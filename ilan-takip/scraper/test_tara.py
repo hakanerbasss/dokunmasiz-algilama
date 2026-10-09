@@ -79,6 +79,7 @@ class Taban(unittest.TestCase):
             mock.patch.object(tara, "indir", side_effect=self._indir),
             mock.patch.object(tara, "ntfy_gonder", side_effect=lambda *a, **k: self.bildirimler.append((a, k))),
             mock.patch.object(tara, "api_post", side_effect=self._api),
+            mock.patch.object(tara, "YAZMA_ARALIGI_SAAT", 0),
             mock.patch.object(tara.time, "sleep", return_value=None),
             mock.patch.dict(os.environ, {"NTFY_TOPIC": "deneme-konu-12345", "GITHUB_REPOSITORY": "ben/depo"}, clear=False),
         ]
@@ -507,6 +508,94 @@ class IzlenenKurum(Taban):
             ("Avcılar Belediyesi 2024 KPSS ile personel alacak", "https://haber.test/3", ""))
         tara.calistir()
         self.assertEqual(self.bildirimler, [])
+
+
+class ProfilVeBelediye(Taban):
+    def setUp(self):
+        super().setUp()
+        self.ayar({**AYAR, "kaynaklar": [{"ad": "Deneme RSS", "tur": "rss", "url": "https://haber.test/feed"}],
+                   "profiller": [{"id": "bio", "ad": "Biyomedikal"},
+                                 {"id": "ceei", "ad": "ÇEEİ", "anahtarlar": ["çalışma ekonomisi", "iş müfettişi"]}]})
+        self.sayfalar["https://haber.test/feed"] = rss(("Jaguar yeni model tanıttı", "https://haber.test/0", ""))
+        tara.calistir()
+        self.bildirimler.clear()
+
+    def test_belediye_ve_profil_ilanlari_saklanir_ama_bildirilmez(self):
+        self.sayfalar["https://haber.test/feed"] = rss(
+            ("Esenyurt Belediyesi 40 işçi alacak", "https://haber.test/1", ""),
+            ("Bakanlık 100 iş müfettişi yardımcısı alacak", "https://haber.test/2", ""),
+            ("Belediye ihale ilanı: mal alımı", "https://haber.test/3", ""))
+        tara.calistir()
+        kayit = {i["url"]: i for i in self.ilanlar()["ilanlar"]}
+        self.assertEqual(kayit["https://haber.test/1"]["seviye"], "belediye")
+        self.assertEqual((kayit["https://haber.test/2"]["seviye"], kayit["https://haber.test/2"]["profiller"]), ("profil", ["ceei"]))
+        self.assertNotIn("https://haber.test/3", kayit)
+        self.assertEqual(self.bildirimler, [])                       # bu kategoriler sayfada görünür, bildirim göndermez
+
+    def test_profil_ayari_sayfaya_yansir(self):
+        self.assertEqual([p["id"] for p in self.ilanlar()["ayar"]["profiller"]], ["bio", "ceei"])
+
+    def test_eski_belediye_ilanlari_duser_ama_lisans_ve_muhendis_kalir(self):
+        d = self.ilanlar()
+        taban = {"nedenler": [], "elendi": [], "tarih": None, "kaynak": "x",
+                 "gercekler": {"kpss_durum": "belirsiz", "kpss_yillari": [], "puan_turleri": {}, "genel_puanlar": [],
+                               "yas_siniri": None, "iller": [], "ehliyet": False, "bolumler": []}}
+        d["ilanlar"] = [{**taban, "id": "b1", "baslik": "Eski belediye", "url": "https://x/1", "seviye": "belediye", "ilk_gorulme": "2026-06-01T00:00:00Z"},
+                        {**taban, "id": "l1", "baslik": "Eski lisans", "url": "https://x/2", "seviye": "lisans", "ilk_gorulme": "2026-06-01T00:00:00Z"}]
+        (self.veri / "ilanlar.json").write_text(json.dumps(d), encoding="utf-8")
+        tara.calistir()
+        kalan = {i["id"] for i in self.ilanlar()["ilanlar"]}
+        self.assertNotIn("b1", kalan)
+        self.assertIn("l1", kalan)
+
+
+class YazmaSikligi(Taban):
+    """Önemsiz (belediye/toplu) ilanlar veri dosyasını en fazla 6 saatte bir yazdırır; önemliler hemen."""
+
+    def setUp(self):
+        super().setUp()
+        self.yama2 = mock.patch.object(tara, "YAZMA_ARALIGI_SAAT", 6)
+        self.yama2.start()
+        self.saat = dt.datetime(2026, 11, 1, 9, 0, tzinfo=dt.timezone.utc)
+        self.yama3 = mock.patch.object(tara, "simdi_al", side_effect=lambda: self.saat)
+        self.yama3.start()
+        self.ayar({**AYAR, "kaynaklar": [{"ad": "Deneme RSS", "tur": "rss", "url": "https://haber.test/feed"}]})
+        self.sayfalar["https://haber.test/feed"] = rss(("Jaguar yeni model tanıttı", "https://haber.test/0", ""))
+        tara.calistir()
+
+    def tearDown(self):
+        self.yama3.stop()
+        self.yama2.stop()
+        super().tearDown()
+
+    def calistir(self, saat_ekle, *ogeler):
+        self.saat += dt.timedelta(hours=saat_ekle)
+        self.sayfalar["https://haber.test/feed"] = rss(*ogeler)
+        tara.calistir()
+        return {i["url"] for i in self.ilanlar()["ilanlar"]}
+
+    def test_onemsiz_ilan_hemen_yazilmaz_sonra_yazilir(self):
+        bel = ("Esenyurt Belediyesi 40 işçi alacak", "https://haber.test/1", "")
+        self.assertNotIn("https://haber.test/1", self.calistir(3, bel))     # 3 saat: bekle
+        self.assertIn("https://haber.test/1", self.calistir(4, bel))        # 7 saat: yazıldı
+
+    def test_onemli_ilan_hemen_yazilir(self):
+        self.assertIn("https://haber.test/2", self.calistir(
+            1, ("Hastane KPSS ile sözleşmeli biyomedikal mühendisi alacak", "https://haber.test/2", "")))
+
+    def test_izlenen_ya_da_lisans_hemen_yazilir(self):
+        self.assertIn("https://haber.test/3", self.calistir(
+            1, ("DHMİ 12 Personel Alımı Yapacak! Herhangi Bir Lisans Mezununa Memur Kadrosu Açıldı", "https://haber.test/3", "")))
+
+
+class BelediyeGurultusu(unittest.TestCase):
+    def test_personelle_ilgisiz_belediye_haberleri_elenir(self):
+        import analiz as a
+        ayar = {"kpss_yillari": [2026], "engelli_iller": []}
+        for b in ["Adana Büyükşehir Belediyesi Koyun Keçi Karma Yemi Alımı", "Belediye otobüs alımı yapacak",
+                  "Belediye arsa alımı için ihale açtı", "Belediye başkanı konuştu"]:
+            self.assertIsNone(a.degerlendir(b, "", ayar, None, 2026), b)
+        self.assertEqual(a.degerlendir("Milas Belediyesi 48 Personel Alacak! Başvurular Başladı", "", ayar, None, 2026)["seviye"], "belediye")
 
 
 if __name__ == "__main__":

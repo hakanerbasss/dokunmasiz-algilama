@@ -33,6 +33,7 @@ Sayfada ilanlar **ayrı sekmelerde** durur, birbirine karışmaz:
 | 🔥 Biyomedikal · KPSS'siz | Aynısı ama "KPSS'siz", "KPSS şartı aranmaz" gibi ifadeyle | evet (yüksek öncelik) |
 | 📄 Herhangi lisans | "Herhangi bir lisans mezunu" alımları, **KPSS'li** olanlar (bölüm şartı yok) | evet (düşük öncelik) |
 | ⚙️ Mühendis | Kamu mühendis ilanı, bölüm kısıtı görünmüyor | yalnızca **ilan metni okunabildiyse** (başlıktan bölüm bilinemez; KPSS'siz olanlar hariç) |
+| 🏛️ Belediye ilanları | Başlığında belediye geçen personel alımı (işçi, memur, sözleşmeli; tüm iller) | hayır |
 | 🏛️ İzlediklerim | `izlenen` ayarındaki kurumlardan (Avcılar, Bathonea, İBB ve İstanbul ilçe belediyeleri) gelen her ilan | evet |
 | 📋 Toplu alım | Kurum toplu personel alıyor; kadro listesinde mühendis var mı elle bak | hayır |
 | Elenenler | Aşağıdaki şartlardan biri tutmadı, nedeniyle birlikte görünür | hayır |
@@ -50,6 +51,29 @@ Hangi sekmelerden bildirim geleceği `scraper/ayar.json` içindeki `bildirim_sev
 bildirim gönderir (varsayılan: KPSS-2026/2 merkezi atama tercih dönemi, 17–24 Aralık 2026 — haberlere dayanıyor,
 ÖSYM'nin resmî duyurusuyla doğrulanmadı). Aynı eşik için bir kez bildirilir; gönderim başarısız olursa sonraki taramada
 yeniden denenir. Aralıklar sayfada "Yaklaşan tarihler" kartında da görünür.
+
+## Başka biri için profil (ör. arkadaşın)
+
+Sayfanın en üstündeki **Profil** listesinden profil seçilir; her profil için puanlar ayrı ve yalnızca o telefonda saklanır.
+Bir profile doğrudan bağlantı da verilebilir: `.../ilan-takip/?profil=ceei` (bağlantıyı sayfadaki
+"Bu profilin bağlantısını kopyala" düğmesi verir).
+
+| Profil | Ne gösterir |
+|---|---|
+| Biyomedikal Mühendisi | Yukarıdaki sekmelerin hepsi (doğu illeri elenir, İstanbul çevresi öne çıkar) |
+| Çalışma Ekonomisi ve Endüstri İlişkileri | **Tüm iller**, **tüm belediyeler** (işçi, memur, sözleşmeli); sekmeler: bölümüne uyanlar, herhangi lisans, belediye ilanları, toplu alım |
+| Kendi bölümüm (yaz) | Yazdığın kelimelere uyan ilanlar + herhangi lisans + belediye ilanları (tüm iller) |
+
+- Bölüme uyma, ilan başlığında ya da (okunabiliyorsa) metninde profilin `anahtarlar` listesindeki kelimenin geçmesiyle
+  anlaşılır (`ayar.json` → `profiller`). Haber başlıklarında bölüm adı nadiren geçtiği için bu sekme çoğu zaman boş
+  kalır; asıl işe yarayanlar **belediye ilanları** ve **herhangi lisans** sekmeleridir.
+- Yeni bir profil eklemek için `profiller` listesine `id`, `ad`, `anahtarlar` (bölüm adı, görev unvanı) eklenir.
+- Belediye işçi alımlarının bir kısmı İŞKUR üzerinden yürür ve haberlerde görünmez; sayfadaki *Elle kontrol et*
+  bağlantılarına İŞKUR eklendi.
+- **Bildirimler tek bir konu adına (tek telefona) gider.** Diğer profiller şimdilik sayfadan bakmak içindir. Ayrı bildirim
+  için ayrı konu adı ve ayrı ayar gerekir.
+- Belediye ve toplu alım ilanları 60 gün sonra listeden düşer; biyomedikal, mühendis ve herhangi lisans ilanları kalır.
+  Önemsiz ilanlar veri dosyasını en fazla 6 saatte bir yazdırır (depo büyümesini sınırlar), önemli ilanlar hemen.
 
 **Elenme şartları** (KPSS'siz ilanlarda KPSS şartları uygulanmaz, yaş ve il uygulanır):
 

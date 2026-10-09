@@ -21,8 +21,9 @@ MUH = re.compile(r"\bmuhendis(?!lik)")
 HIRE = re.compile(r"\b(?:alim|alin|alac|aliyor|alir|arani?yor|ariyor|ilani|ilan\b|ilanlar|"
                   r"basvuru|yerlestirme|istihdam|duyuru|kadro)")
 PERSONEL = re.compile(r"personel|memur|sozlesmeli|\bkadro|\bisci\b|istihdam|kpss|"
-                      r"\b4\s?/\s?[abd]\b|mulakat|uzman yardimci|gorevlisi|ogretim uyesi|ise alim")
-PROC = re.compile(r"\bihale|mal alim|hizmet alim|cihaz alim|arac alim|satin alim|ekipman alim")
+                      r"\b4\s?/\s?[abd]\b|mulakat|uzman yardimci|gorevlisi|ogretim uyesi|ise alim|mufettis")
+PROC = re.compile(r"\bihale|mal alim|hizmet alim|cihaz alim|arac alim|satin alim|ekipman alim|"
+                  r"(?:yem|malzeme|makine|ilac|arsa|gayrimenkul|kamyon|otobus|konteyn\w*)\s+alim")
 PROC_ISTISNA = re.compile(r"personel alim|memur alim|isci alim")
 PRIVATE = re.compile(r"\bfirma|\bsirket|ozel sektor|\bholding|kariyer\.net")
 ILGILI_KURUM = re.compile(r"titck|tibbi cihaz kurumu|saglik bakanlig|saglik bilimleri universite|"
@@ -41,6 +42,10 @@ TAHMIN = re.compile(r"ne zaman|\bmi\b|\bmu\b|\?|nasil|nereden|tarihi belli|bekle
 TOPLU_HARIC = re.compile(r"akademik|ogretim uyesi|ogretim gorevlisi|arastirma gorevlisi|profesor|docent|"
                          r"bekci|temizlik|guvenlik gorevlisi|koruma ve guvenlik|itfaiye|zabita|infaz|"
                          r"jandarma|polis|ogretmen|hemsire|gorevde yukselme|unvan degisikligi|\biskur|\bisci\b")
+# Belediye ilanları (işçi, memur, sözleşmeli; her il) ve başka profillerin anahtar kelimeleri için ek sınıflama.
+BELEDIYE = re.compile(r"\bbelediye")
+PERSONEL_GENIS = re.compile(r"personel|memur|\bisci|sozlesmeli|\bkadro|zabita|itfaiye|temizlik gorevlisi|"
+                            r"guvenlik gorevlisi|sofor|istihdam|is ilani|ise alim")
 # "KPSS'siz", "KPSS şartı aranmaz", "KPSS puanı olmayanlar da başvurabilir" ...
 SIZ = re.compile(r"kpss\W{0,3}siz|kpss\s+(?:sarti\s+|puani\s+)?(?:olmadan|olmayan\w*|aranmaz|aranmamakta\w*|"
                  r"aranmaksizin|sartsiz|yok)|kpss\s+sart\w*\s+(?:olmadan|aranmaz|aranmamakta\w*|"
@@ -317,6 +322,35 @@ def profil_elemeleri(g, profil, yil):
     return nedenler
 
 
+def anahtar_eslesmesi(metin, ayar):
+    """ayar["profiller"][*]["anahtarlar"] (bölüm adı, görev unvanı...) metinde geçen profillerin kimlikleri.
+    `metin` katlanmış (fold) olmalı."""
+    bulunan = []
+    for p in ayar.get("profiller", []):
+        if any(fold(k) in metin for k in p.get("anahtarlar", [])):
+            bulunan.append(p["id"])
+    return bulunan
+
+
+def sinifla_ek(baslik, govde="", ayar=None):
+    """sinifla()'nın kapsamadığı ilanlar -> (seviye, nedenler) ya da None.
+
+    profil: başka bir profilin bölüm/görev anahtarı geçiyor (başlıkta; ya da gövdede, başlıkta personel bağlamı varsa)
+    belediye: belediye ilanı (işçi/memur/sözleşmeli; tüm iller)"""
+    ayar = ayar or {}
+    t = fold(baslik)
+    tum = f"{t} {fold(govde[:GOVDE_SINIRI])}"
+    if SONUC.search(t) or TAHMIN.search(t) or not HIRE.search(t):
+        return None
+    if PROC.search(t) and not PROC_ISTISNA.search(t):
+        return None
+    if anahtar_eslesmesi(t, ayar) or (PERSONEL.search(t) and anahtar_eslesmesi(tum, ayar)):
+        return "profil", ["Bölümüne/mesleğine uyan anahtar kelime geçiyor"]
+    if BELEDIYE.search(t) and PERSONEL_GENIS.search(t):
+        return "belediye", ["Belediye ilanı: kadro listesi ve şartlar ilanda"]
+    return None
+
+
 def izlenen_mi(baslik, ayar):
     """Kullanıcının çalıştığı/izlediği kurum mu? Yalnızca BAŞLIĞA bakılır (gövdede tesadüfen geçmesin).
 
@@ -336,6 +370,9 @@ def degerlendir(baslik, govde, ayar, profil=None, yil=2026, resmi=False):
     """Tam hat: ilgisizse None, değilse {seviye, nedenler, gercekler, elendi, elendi_profil}."""
     izlenen = izlenen_mi(baslik, ayar)
     s = sinifla(baslik, govde, resmi, izlenen)
+    ek = sinifla_ek(baslik, govde, ayar)
+    if s is None or (s[0] == "toplu" and ek):
+        s = ek or s          # genel "toplu alım" yerine daha özel olan (belediye / bölüme uyan) tercih edilir
     if s is None:
         return None
     seviye, nedenler = s
@@ -348,4 +385,5 @@ def degerlendir(baslik, govde, ayar, profil=None, yil=2026, resmi=False):
         "elendi": profilsiz_elemeler(baslik, govde, g, ayar),
         "elendi_profil": profil_elemeleri(g, profil, yil),
         "izlenen": izlenen,
+        "profiller": anahtar_eslesmesi(tum, ayar),
     }
