@@ -39,6 +39,7 @@ jobs:
         id: tara
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_TOPIC_ORTA: ${{ secrets.NTFY_TOPIC_ORTA }}
           PROFIL_JSON: ${{ secrets.PROFIL_JSON }}
           SIFIRLA: ${{ inputs.sifirla }}
         run: |

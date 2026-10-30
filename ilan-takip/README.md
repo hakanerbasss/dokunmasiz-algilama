@@ -63,6 +63,7 @@ Bir profile doğrudan bağlantı da verilebilir: `.../ilan-takip/?profil=ceei` (
 | Biyomedikal Mühendisi | Yukarıdaki sekmelerin hepsi (doğu illeri elenir, İstanbul çevresi öne çıkar) |
 | Çalışma Ekonomisi ve Endüstri İlişkileri | **Tüm iller**, **tüm belediyeler** (işçi, memur, sözleşmeli); sekmeler: bölümüne uyanlar, herhangi lisans, belediye ilanları, toplu alım |
 | Kendi bölümüm (yaz) | Yazdığın kelimelere uyan ilanlar + herhangi lisans + belediye ilanları (tüm iller) |
+| Ortaöğretim (lise) KPSS · anonim | Lise düzeyi alımlar, **tüm iller**; ayrıntısı aşağıda |
 
 - Bölüme uyma, ilan başlığında ya da (okunabiliyorsa) metninde profilin `anahtarlar` listesindeki kelimenin geçmesiyle
   anlaşılır (`ayar.json` → `profiller`). Haber başlıklarında bölüm adı nadiren geçtiği için bu sekme çoğu zaman boş
@@ -86,6 +87,37 @@ Bir profile doğrudan bağlantı da verilebilir: `.../ilan-takip/?profil=ceei` (
 - Askerlik yapıldığı için askerlik şartı sorun çıkarmaz.
 
 Tüm bu ayarlar `scraper/ayar.json` içindedir (iller, yıl, bitiş tarihi, arama sorguları, kaynaklar).
+
+## Ortaöğretim (lise) KPSS profili — anonim
+
+`?profil=orta` ya da Profil listesinden *Ortaöğretim (lise) KPSS · anonim*. **Anonimdir:** puan, sınav yılı ve doğum yılı
+girmek zorunda değilsin; girmezsen ortaöğretim ilanlarının hepsi görünür, girersen (KPSSP94, yıl, doğum yılı; yalnızca
+telefonda saklanır) puanı/yılı/yaşı tutmayanlar *Elenenler*'e düşer.
+
+| Sekme | Ne var |
+|---|---|
+| KPSS puanına göre | Ortaöğretim **KPSS puanıyla** (P94) alım yapan ilanlar — kartta asgari puan, yaş ve il yazar |
+| Genel alımlar | Lise düzeyi kadro (zabıta, itfaiye eri, güvenlik, hizmetli, büro personeli ...) ya da "lise mezunu" diyen, KPSS'siz/KPSS'si belirsiz alımlar |
+| Belediye ilanları | Belediye alımları (işçi, memur, sözleşmeli); düzey ilanda yazar |
+| Düzeyi belirsiz | Başlığında öğrenim düzeyi geçmeyen toplu alımlar (kadro listesinde lise olabilir, ilanı aç) |
+| Elenenler | Düzeyi lise olup puanı/yılı/yaşı tutmayanlar (yalnızca puan girdiysen dolar) |
+
+- **Bildirim:** ortaöğretim KPSS puanıyla alım yapan **her yeni ilan** için gider; puana ve yaşa bakılmaz (profil anonim,
+  sunucu puanını bilmez). "KPSS puanına göre" sekmesindeki ilanlar budur: ilanda KPSS geçmesi, P94 yazması ya da
+  memur/4-B sözleşmeli kadrosu olması gerekir; KPSS'siz alımlar, lisans/ön lisans düzeyi (P3, P93 ...) ve işçi/İŞKUR kurası
+  hariçtir. Bildirim, `ayar.json` → `orta_bildirimi: false` ile kapatılır.
+- **Konu:** `NTFY_TOPIC_ORTA` secret'ı varsa ayrı bir konuya (ayrı telefona) gider; yoksa ana konuya gelir, başlığı
+  "🏫 Ortaöğretim KPSS ilanı" diye ayrılır. Sayfadaki kurulum kartında ayrı konu adı üretilebilir. Açılışta, açık ilanlar
+  tek özet bildirimle gelir (konu değişirse özet yeniden gider).
+- **Aynı haber bir kez:** Aynı ilanı onlarca site yazar ("İzmir 90 zabıta memuru" ~30 başlık). Kurum + kişi sayısı + kadro
+  benzerliğiyle aynı olaya ait haberler **tek kart** (+N benzer haber) ve **tek bildirim** olur.
+- **Düzey tespiti:** başlık/metinde "ortaöğretim", "lise", "P94" ya da lise mezununun alındığı kadrolar (`ORTA_ROL`).
+  "Lisans/ön lisans", "P3/P93" isteyenler bu profilde görünmez. Başlığı söylemeyen toplu alımlarda düzey bilinemez
+  ("Düzeyi belirsiz" sekmesi).
+- **Tarihler:** Lisans tercih dönemi hatırlatması bu profilde görünmez ve bildirilmez (hatırlatmalarda `profiller` alanı).
+  Ortaöğretim/ön lisans KPSS tarihlerini ÖSYM açıklayınca `hatirlatmalar` listesine `"profiller": ["orta"]` ile eklenebilir.
+- **Sınıflama sürümü:** `ayar.json` → `analiz_surumu` artınca, eskiden görülüp kaydedilmemiş ilanlar yeniden değerlendirilir
+  (kayıtlı olanlar yinelenmez, bildirim gitmez). Yeni bir profil/kural eklerken geçmiş haberleri toplamak için bunu artır.
 
 ## Kaynaklar
 

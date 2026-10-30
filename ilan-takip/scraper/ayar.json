@@ -30,7 +30,21 @@
     "çalışma ekonomisi ve endüstri ilişkileri mezunu personel alımı",
     "iş müfettişi yardımcısı alımı",
     "sosyal güvenlik kontrol memuru alımı",
-    "iş ve meslek danışmanı alımı İŞKUR"
+    "iş ve meslek danışmanı alımı İŞKUR",
+    "ortaöğretim mezunu personel alımı KPSS",
+    "lise mezunu memur alımı KPSS 2026",
+    "KPSS P94 personel alımı",
+    "ortaöğretim KPSS sözleşmeli personel alımı",
+    "KPSS puanıyla memur alımı lise",
+    "zabıta memuru alımı",
+    "itfaiye eri alımı",
+    "koruma ve güvenlik görevlisi alımı",
+    "infaz koruma memuru alımı",
+    "Adalet Bakanlığı zabıt katibi alımı",
+    "büro personeli alımı KPSS",
+    "kamu işçi alımı İŞKUR",
+    "hastane destek personeli alımı",
+    "Milli Eğitim Bakanlığı personel alımı lise"
   ],
   "kaynaklar": [
     {"ad": "Kariyer Kapısı (resmî RSS)", "tur": "rss", "url": "https://kariyerkapisi.gov.tr/RSS", "resmi": true},
@@ -43,12 +57,16 @@
   "kk_api": false,
   "izlenen": {"kurumlar": ["Avcılar", "Bathonea", "İBB"], "belediye_illeri": ["İstanbul"]},
   "hatirlatmalar": [
-    {"ad": "KPSS-2026/2 merkezi atama tercih dönemi", "baslangic": "2026-12-17", "bitis": "2026-12-24", "gunler_once": [14, 3, 0], "not": "Tarih haberlere dayanıyor; ÖSYM'nin resmî duyurusunu doğrula. Kılavuzda 'Biyomedikal' ara.", "baglanti": "https://www.osym.gov.tr/SinavGrubu/Index/3"}
+    {"ad": "KPSS-2026/2 merkezi atama tercih dönemi", "baslangic": "2026-12-17", "bitis": "2026-12-24", "gunler_once": [14, 3, 0], "profiller": ["bio", "ceei", "ozel"], "not": "Tarih haberlere dayanıyor; ÖSYM'nin resmî duyurusunu doğrula. Kılavuzda 'Biyomedikal' ara.", "baglanti": "https://www.osym.gov.tr/SinavGrubu/Index/3"}
   ],
   "profiller": [
     {"id": "bio", "ad": "Biyomedikal Mühendisi", "kisa": "Biyomedikal"},
-    {"id": "ceei", "ad": "Çalışma Ekonomisi ve Endüstri İlişkileri", "kisa": "Çalışma Ek. ve End. İliş.", "tum_iller": true, "isci_dahil": true, "anahtarlar": ["çalışma ekonomisi", "endüstri ilişkileri", "iş müfettişi", "sigorta müfettişi", "sosyal güvenlik kontrol memuru", "iş ve meslek danışmanı", "insan kaynakları"]}
+    {"id": "ceei", "ad": "Çalışma Ekonomisi ve Endüstri İlişkileri", "kisa": "Çalışma Ek. ve End. İliş.", "tum_iller": true, "isci_dahil": true, "anahtarlar": ["çalışma ekonomisi", "endüstri ilişkileri", "iş müfettişi", "sigorta müfettişi", "sosyal güvenlik kontrol memuru", "iş ve meslek danışmanı", "insan kaynakları"]},
+    {"id": "orta", "ad": "Ortaöğretim (lise) KPSS · anonim", "kisa": "Ortaöğretim", "tum_iller": true, "isci_dahil": true, "egitim": "ortaogretim", "anonim": true, "puan_turleri": ["P94"], "kpss_yili_sor": true, "gizle_ek": ["lisans_gerekli"]}
   ],
-  "gizle": {"brans": ["veteriner", "hekim", "tabip", "doktor", "hemşire", "ebe", "eczacı", "diyetisyen", "fizyoterapist", "psikolog", "sosyal çalışmacı", "öğretmen", "avukat", "mimar", "şehir plancısı", "peyzaj", "ziraat mühendis", "orman mühendis", "inşaat mühendis", "makine mühendis", "elektrik mühendis", "harita mühendis", "jeoloji", "gıda mühendis", "çevre mühendis", "hakim", "savcı", "imam", "müezzin", "vaiz", "pilot", "kabin memur", "tekniker", "teknisyen", "sağlık teknikeri", "laborant", "radyoloji", "anestezi", "çocuk gelişimi", "sosyolog"], "isci": ["güvenlik görevli", "koruma ve güvenlik", "güvenlik personeli", "özel güvenlik", "bekçi", "zabıta", "itfaiye", "şoför", "sürücü", "temizlik", "aşçı", "mutfak", "bahçıvan", "kaynakçı", "tesisatçı", "işçi alım", "işçi al", "işçisi", "daimi işçi", "kadrolu işçi"]},
-  "bildirim_profili": "bio"
+  "gizle": {"brans": ["veteriner", "hekim", "tabip", "doktor", "hemşire", "ebe", "eczacı", "diyetisyen", "fizyoterapist", "psikolog", "sosyal çalışmacı", "öğretmen", "avukat", "mimar", "şehir plancısı", "peyzaj", "ziraat mühendis", "orman mühendis", "inşaat mühendis", "makine mühendis", "elektrik mühendis", "harita mühendis", "jeoloji", "gıda mühendis", "çevre mühendis", "hakim", "savcı", "imam", "müezzin", "vaiz", "pilot", "kabin memur", "tekniker", "teknisyen", "sağlık teknikeri", "laborant", "radyoloji", "anestezi", "çocuk gelişimi", "sosyolog"], "isci": ["güvenlik görevli", "koruma ve güvenlik", "güvenlik personeli", "özel güvenlik", "bekçi", "zabıta", "itfaiye", "şoför", "sürücü", "temizlik", "aşçı", "mutfak", "bahçıvan", "kaynakçı", "tesisatçı", "işçi alım", "işçi al", "işçisi", "daimi işçi", "kadrolu işçi"],
+    "lisans_gerekli": ["uzman yardımcı", "müfettiş", "denetçi", "denetmen", "hesap uzman", "kontrolör", "analist", "mühendis", "araştırmacı", "yazılım geliştirici", "kaymakam", "sosyal güvenlik uzman"]},
+  "bildirim_profili": "bio",
+  "orta_bildirimi": true,
+  "analiz_surumu": 2
 }

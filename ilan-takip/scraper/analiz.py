@@ -60,6 +60,24 @@ HERHANGI_LISANS = re.compile(r"herhangi bir (?:\w+ )?(?:on ?)?lisans|herhangi bi
                              r"her (?:turlu )?bolum|bolum (?:sarti|siniri|kisiti) (?:aranmaz|aranmay\w*|yok|bulunmaz|bulunmay\w*)|tum lisans")
 HER_BRANS = re.compile(r"tum muhendis|her turlu muhendis|muhendislik fakulteler|ilgili muhendis|"
                        r"muhendislik bolumler|muhendislik alanlar|muhendis \(her|muhendislik programlar")
+# Ortaöğretim (lise) düzeyi: açık ifade ya da KPSS P94; ORTA_ROL lise mezununun alındığı bilinen kadrolardır.
+ORTA_DUZEY = re.compile(r"ortaogretim|\blise\b|\blisesi\b|(?:\b|kpss\W{0,3})p\s?94(?!\d)")     # "P94" ve "KPSSP94"
+ORTA_ROL = re.compile(r"\bzabita|\bitfaiye|koruma ve guvenlik|guvenlik gorevli|guvenlik personeli|\bbekci|infaz koruma|"
+                      r"gardiyan|zabit katib|\bvhki\b|veri hazirlama|buro (?:personeli|memuru|gorevlisi)|"
+                      r"destek personeli|\bhizmetli|\bodaci|\bsofor|temizlik (?:personeli|gorevlisi|elemani)|"
+                      r"gumruk muhafaza|cagri merkezi|\bgarson|\basci")
+# Sınav/başvuru kılavuzu, taban puan ve istatistik haberleri ilan değildir ("atama taban puanları", "başvuru sayısı").
+ORTA_HARIC = re.compile(r"basvuru kilavuz|taban puan|basvuru sayisi|rehber|\bistatistik|sinav tarih|sinav takvim|"
+                        r"yerlestirme sonuc|cevap anahtar|soru ve cevap")
+# KPSS ile alınan kadro türleri (memur, 4/B sözleşmeli); işçi alımları İŞKUR kurası ile yapılır, KPSS aranmaz.
+KPSS_YOLU = re.compile(r"\bmemur|sozlesmeli|\b4\s?/\s?b\b|\bkadro")
+ISCI_YOLU = re.compile(r"\bisci|\bkura\b|\biskur|gecici")
+_EGITIM = {
+    "ilkogretim": re.compile(r"ilkogretim|ortaokul|ilkokul|okur yazar"),
+    "ortaogretim": ORTA_DUZEY,
+    "onlisans": re.compile(r"\bon ?lisans|(?:\b|kpss\W{0,3})p\s?93(?!\d)"),
+    "lisans": re.compile(r"(?<!on )(?<!yuksek )\blisans(?:i|a|tan|ta|lar\w*)?\b|kpss\W{0,3}p\s?(?:1|2|3|1\d|2[0-4])(?!\d)"),
+}
 
 ILLER = ["Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Aksaray", "Amasya", "Ankara", "Antalya",
          "Ardahan", "Artvin", "Aydın", "Balıkesir", "Bartın", "Batman", "Bayburt", "Bilecik", "Bingöl",
@@ -165,13 +183,15 @@ def genel_puanlar(tum):
     """Puan türü belirtilmeden geçen asgari puanlar: "65 puanla", "50-59 puanla", "65 KPSS ile", "KPSS 70 puan".
     Yıllar ("2026 KPSS", "KPSS-2026/2"), puan türü numaraları (P93) ve 4/B sayılmaz."""
     bulunan = []
-    desenler = (r"(?<![\d.,/p])(\d{2})(?:\s*-\s*(\d{2}))?(?!\d)\s*(?:puan(?:la|i|in|a)?\b|kpss)",
+    # "65 puanla", "50-59 puanla", "60 ve 70 puan", "60-65-70 puanlarla", "65 KPSS ile", "KPSS 70 puan"
+    desenler = (r"(?<![\d.,/p])((?:\d{2}\s*(?:-|,|/|ve|veya)\s*)*\d{2})(?!\d)\s*(?:puan\w*|kpss)",
                 r"kpss\s*(?:puani\s*)?(?<![\d])(\d{2})(?:\s*-\s*(\d{2}))?(?![\d/])")
     for rx in desenler:
         for m in re.finditer(rx, tum):
             for g in m.groups():
-                if g and 40 <= int(g) <= 100:
-                    bulunan.append(int(g))
+                for sayi in re.findall(r"\d{2}", g or ""):
+                    if 40 <= int(sayi) <= 100:
+                        bulunan.append(int(sayi))
     return sorted(set(bulunan))
 
 
@@ -200,6 +220,11 @@ def kpss_durumu(tum):
     return "yok" if siz else ("var" if var else "belirsiz")
 
 
+def egitim_duzeyleri(tum):
+    """Metinde geçen öğrenim düzeyleri: ilkogretim | ortaogretim | onlisans | lisans (katlanmış metin)."""
+    return [ad for ad, rx in _EGITIM.items() if rx.search(tum)]
+
+
 def gercekler(orijinal, tum):
     return {
         "kpss_durum": kpss_durumu(tum),
@@ -211,6 +236,7 @@ def gercekler(orijinal, tum):
         "iller": iller_bul(orijinal, tum),
         "ehliyet": bool(re.search(r"surucu belgesi|ehliyet", tum)),
         "bolumler": branslar(tum),
+        "egitim": egitim_duzeyleri(tum),
     }
 
 
@@ -337,6 +363,58 @@ def profil_elemeleri(g, profil, yil):
     return nedenler
 
 
+# Aynı ilanı onlarca site farklı başlıkla yazar ("İzmir 90 zabıta memuru" gibi); bunlar tek olay sayılır.
+_OLAY_KURUM = re.compile(r"([a-z0-9]+)\s+(?:buyuksehir\s+)?(?:belediye|universite|bakanlig|hastane|baskanlig)")
+_OLAY_GENEL = {"buyuksehir", "belediye", "universite", "bakanlig", "devlet", "kamu", "saglik", "il", "ilce", "ve", "ile"}
+_OLAY_SAYI = re.compile(r"(?<![\d.,/])(\d{1,5})(?![\d.,/])\s*(?:kisi|personel|memur|isci|zabita|itfaiye|bekci|gorevli|kadro|"
+                        r"sozlesmeli|hizmetli|sofor)")
+
+
+def olay_anahtari(baslik):
+    """Başlıktan (kurum, kişi sayısı, kadro) üçlüsü; bulunamayan alan boş bırakılır."""
+    t = fold(baslik)
+    m = _OLAY_KURUM.search(t)
+    kurum = m.group(1) if m and m.group(1) not in _OLAY_GENEL else ""
+    sayi = _OLAY_SAYI.search(t)
+    rol = ORTA_ROL.search(t)
+    return (kurum, sayi.group(1) if sayi else "", re.sub(r"\W+", "", rol.group(0)) if rol else "")
+
+
+def ayni_olay(a, b):
+    """İki olay anahtarı aynı ilana mı ait? Çelişen kurum/sayı varsa hayır; kurum+sayı aynıysa evet (kadro farkı önemsenmez)."""
+    (k1, s1, r1), (k2, s2, r2) = a, b
+    if (k1 and k2 and k1 != k2) or (s1 and s2 and s1 != s2):
+        return False
+    guclu = bool(k1 and k1 == k2) + bool(s1 and s1 == s2)
+    if guclu >= 2:
+        return True
+    if r1 and r2 and r1 != r2:
+        return False
+    uyum = guclu + bool(r1 and r1 == r2)
+    return uyum >= 2 or (uyum == 1 and min(sum(map(bool, a)), sum(map(bool, b))) == 1)
+
+
+def ortaogretim_ilgili(ilan):
+    return ilan["seviye"] == "orta" or bool(ilan.get("orta_kpss")) or "ortaogretim" in ilan["gercekler"].get("egitim", [])
+
+
+def olay_ata(ilanlar):
+    """{ilan_id: olay_anahtari}, yalnızca birden çok haberi olan olaylar için. `ilanlar` yeniden eskiye sıralı olmalı.
+    Grubun anahtarı en eski haberin anahtarıdır: yeni haber gelince değişmez."""
+    gruplar = []
+    for i in reversed(ilanlar):
+        if not ortaogretim_ilgili(i):
+            continue
+        k = olay_anahtari(i["baslik"])
+        for g in gruplar:
+            if ayni_olay(g[0], k):
+                g[1].append(i["id"])
+                break
+        else:
+            gruplar.append((k, [i["id"]]))
+    return {kimlik: "|".join(g[0]) or g[1][0] for g in gruplar if len(g[1]) > 1 for kimlik in g[1]}
+
+
 def anahtar_eslesmesi(metin, ayar):
     """ayar["profiller"][*]["anahtarlar"] (bölüm adı, görev unvanı...) metinde geçen profillerin kimlikleri.
     `metin` katlanmış (fold) olmalı."""
@@ -363,7 +441,37 @@ def sinifla_ek(baslik, govde="", ayar=None):
         return "profil", ["Bölümüne/mesleğine uyan anahtar kelime geçiyor"]
     if BELEDIYE.search(t) and PERSONEL_GENIS.search(t):
         return "belediye", ["Belediye ilanı: kadro listesi ve şartlar ilanda"]
+    # Lise mezununa açık kamu alımı: başlıkta lise/ortaöğretim yazıyorsa (lisans da yazmıyorsa) ya da zabıta, itfaiye eri,
+    # güvenlik görevlisi gibi lise düzeyi kadro varsa. Özel şirket ilanı olmasın diye kamu işareti ya da KPSS aranır.
+    kamu = PUBLIC.search(t) or "kpss" in tum
+    dz = egitim_duzeyleri(t)
+    if kamu and not ORTA_HARIC.search(t) and (PERSONEL_GENIS.search(t) or PUBLIC.search(t)) and not (PRIVATE.search(t) and "kpss" not in tum):
+        if "ortaogretim" in dz and "lisans" not in dz:
+            return "orta", ["Ortaöğretim (lise) mezunlarına açık alım"]
+        if ORTA_ROL.search(t):
+            return "orta", ["Lise düzeyi kadro (zabıta, itfaiye, güvenlik, hizmetli...): şartlar ilanda"]
     return None
+
+
+def orta_kpss_mi(ilan):
+    """Ortaöğretim KPSS puanıyla (P94) alım yapan bir ilan mı? Kayıtlı ilan sözlüğüne bakar; kişisel bilgi gerekmez.
+
+    Düzey kanıtı (ortaöğretim yazıyor / P94 / lise kadrosu) ve KPSS dayanağı (KPSS geçiyor, P94 ya da memur/4-B kadrosu) aranır.
+    Yalnızca lisans/önlisans puan türü (P3, P93) ya da lisans/önlisans düzeyi isteyen ilanlar dışarıda kalır."""
+    if ilan["seviye"] not in ("orta", "belediye", "toplu") or "orta" in ilan.get("ilgisiz", []):
+        return False
+    g = ilan["gercekler"]
+    t = fold(ilan["baslik"])
+    turler = g.get("puan_turleri") or {}
+    if turler and "P94" not in turler:
+        return False
+    egitim = set(g.get("egitim") or [])
+    if egitim and not egitim & {"ortaogretim", "ilkogretim"}:
+        return False
+    duzey = bool(egitim) or "P94" in turler or ilan["seviye"] == "orta" or bool(ORTA_ROL.search(t))
+    dayanak = (g.get("kpss_durum") in ("var", "karma") or "P94" in turler
+               or bool(KPSS_YOLU.search(t) and not ISCI_YOLU.search(t)))
+    return duzey and dayanak and g.get("kpss_durum") != "yok"
 
 
 def ilgisiz_profiller(baslik, ayar):
@@ -380,13 +488,16 @@ def ilgisiz_profiller(baslik, ayar):
     for p in ayar.get("profiller", []):
         if (p["id"] == "bio" and BIO.search(t)) or any(fold(k) in t for k in p.get("anahtarlar", [])):
             continue
+        if p.get("egitim") == "ortaogretim" and (ORTA_DUZEY.search(t) or ORTA_ROL.search(t)):
+            continue        # başlıkta lise düzeyi kadro da varsa ("mühendis, zabıta ve itfaiye eri alımı") gizlenmez
         liste = list(gizle.get("brans", [])) + ([] if p.get("isci_dahil") else list(gizle.get("isci", [])))
+        liste += [k for ad in p.get("gizle_ek", []) for k in gizle.get(ad, [])]
         if any(fold(k) in t for k in liste):
             sonuc.append(p["id"])
     return sonuc
 
 
-GIZLENEBILIR = ("toplu", "belediye", "profil", "lisans")     # biyomedikal/mühendis ilanları bu kuraldan etkilenmez
+GIZLENEBILIR = ("toplu", "belediye", "profil", "lisans", "orta")     # biyomedikal/mühendis ilanları bu kuraldan etkilenmez
 
 
 def izlenen_mi(baslik, ayar):
