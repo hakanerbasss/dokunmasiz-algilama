@@ -340,6 +340,11 @@ class Gercekler(unittest.TestCase):
         self.assertEqual(self.g("2026 KPSS Puanıyla 860 Memur Alımı! 65 Puanla Başvurular Başlıyor")["genel_puanlar"], [65])
         self.assertEqual(self.g("2026 KPSS 50-59 Puanla Memur Alımı!")["genel_puanlar"], [50, 59])
 
+    def test_genel_puan_listeleri(self):
+        self.assertEqual(self.g("İki Belediyeden Memur Alımı! KPSS Şartı 60 ve 70 Puan Olarak Açıklandı")["genel_puanlar"], [60, 70])
+        self.assertEqual(self.g("KPSS 60-65-70 Puanlarla Memur-İtfaiye Eri Alımı Başladı")["genel_puanlar"], [60, 65, 70])
+        self.assertEqual(self.g("KPSS-2026/2 tercih döneminde 2026 KPSS ile alım")["genel_puanlar"], [])
+
     def test_yas_siniri(self):
         self.assertEqual(self.g("35 yaşını doldurmamış olmak")["yas_siniri"], 35)
         self.assertEqual(self.g("30 yaşından gün almamış olmak")["yas_siniri"], 30)
@@ -444,6 +449,130 @@ class Elemeler(unittest.TestCase):
     def test_profil_yok(self):
         d = self.deg("KPSS mühendis alımı", "KPSSP3 en az 99 puan")
         self.assertEqual(d["elendi_profil"], [])
+
+
+ORTA_AYAR = {
+    "profiller": [{"id": "bio", "ad": "Biyomedikal"},
+                  {"id": "orta", "ad": "Ortaöğretim", "isci_dahil": True, "egitim": "ortaogretim", "gizle_ek": ["lisans_gerekli"]}],
+    "gizle": {"brans": ["veteriner", "hemşire"], "isci": ["zabıta"], "lisans_gerekli": ["uzman yardımcı", "müfettiş"]},
+}
+
+
+def ilan_kaydi(baslik, govde=""):
+    d = a.degerlendir(baslik, govde, ORTA_AYAR)
+    return {"baslik": baslik, "seviye": d["seviye"], "gercekler": d["gercekler"], "ilgisiz": d["ilgisiz"]} if d else None
+
+
+class OrtaogretimDuzeyi(unittest.TestCase):
+    def duzey(self, metin):
+        return a.egitim_duzeyleri(a.fold(metin))
+
+    def test_duzeyler(self):
+        self.assertEqual(self.duzey("Lise mezunu zabıta memuru"), ["ortaogretim"])
+        self.assertEqual(self.duzey("Lise ve ön lisans mezunlarına açık"), ["ortaogretim", "onlisans"])
+        self.assertEqual(self.duzey("Ön lisans ve lisans mezunu"), ["onlisans", "lisans"])
+        self.assertEqual(self.duzey("KPSS P94 puanı ile"), ["ortaogretim"])
+        self.assertEqual(self.duzey("KPSSP94 puanı ile"), ["ortaogretim"])
+        self.assertEqual(self.duzey("KPSSP93 60 puan"), ["onlisans"])
+        self.assertEqual(self.duzey("KPSS-P3 en az 70"), ["lisans"])
+        self.assertEqual(self.duzey("İlkokul mezunu işçi alımı"), ["ilkogretim"])
+
+    def test_lisans_benzeri_sozcukler_lisans_sayilmaz(self):
+        self.assertEqual(self.duzey("Yüksek lisans mezunu"), [])
+        self.assertEqual(self.duzey("Lisansüstü eğitim"), [])
+        self.assertEqual(self.duzey("Lisanslı güvenlik görevlisi"), [])
+
+    def test_gerceklerde_egitim(self):
+        d = a.degerlendir("Şile Belediyesi Lise Mezunu 8 Zabıta Memuru Alacak! 65 KPSS ile Başvuru", "", ORTA_AYAR)
+        self.assertEqual(d["gercekler"]["egitim"], ["ortaogretim"])
+
+
+class OrtaogretimSinifi(unittest.TestCase):
+    def test_lise_duzeyi_kamu_ilani(self):
+        for b in ("Adalet Bakanlığı 5 bin infaz koruma memuru alacak",
+                  "Düzce Üniversitesi En Az Lise Mezunu Sözleşmeli Memur Alımı Yapacak",
+                  "Sağlık Bakanlığı güvenlik görevlisi alımı: Başvuru şartları belli oldu"):
+            self.assertEqual(a.sinifla_ek(b, "", ORTA_AYAR)[0], "orta", b)
+
+    def test_belediye_ilani_belediye_kalir(self):
+        self.assertEqual(a.sinifla_ek("Şile Belediyesi Lise Mezunu 8 Zabıta Memuru Alacak", "", ORTA_AYAR)[0], "belediye")
+
+    def test_ozel_sirket_ve_bilgi_haberleri_degil(self):
+        for b in ("Toyota’dan En Az Lise Mezunlarına Personel Alımı! 18–30 Yaş Şartı",
+                  "2026-KPSS Ortaöğretim Başvuru Kılavuzu",
+                  "Zabıta Memuru KPSS ortaöğretim atama taban puanları 2026",
+                  "Lise KPSS’de Büyük Artış! İşte Başvuru Sayısı"):
+            self.assertIsNone(a.sinifla_ek(b, "", ORTA_AYAR), b)
+
+    def test_lisans_mezunu_zabita_orta_sinifta_ama_duzeyi_lisans(self):
+        d = a.degerlendir("Tüm Lisans Mezunlarına Açık Zabıta Memuru Alımı Yapılacak", "", ORTA_AYAR)
+        self.assertEqual(d["gercekler"]["egitim"], ["lisans"])
+
+
+class OrtaogretimKpss(unittest.TestCase):
+    def kpss(self, baslik, govde=""):
+        i = ilan_kaydi(baslik, govde)
+        return bool(i) and a.orta_kpss_mi(i)
+
+    def test_p94_ve_lise_kpss_ilanlari(self):
+        self.assertTrue(self.kpss("Sağlık Bakanlığı KPSS P94 ile 10 bin sözleşmeli personel alacak"))
+        self.assertTrue(self.kpss("Şile Belediyesi Lise Mezunu 8 Zabıta Memuru Alacak! 65 KPSS ile Başvuru"))
+        self.assertTrue(self.kpss("Kamu Üniversitesine 60 KPSS Puanla En Az Lise Personel Alımı"))
+
+    def test_memur_kadrosu_baslikta_kpss_yazmasa_da_kpss_sayilir(self):
+        self.assertTrue(self.kpss("Adalet Bakanlığı 5 bin infaz koruma memuru alacak"))
+        self.assertTrue(self.kpss("Üsküdar Belediyesi Memur Alımında Başvurular Başladı: Lise Mezunlarına Fırsat"))
+
+    def test_kpssiz_ve_isci_alimi_degil(self):
+        self.assertFalse(self.kpss("ROKETSAN 16 Farklı Pozisyonda Personel Alıyor: KPSS Şartı Yok, İtfaiye Eri ve Teknisyen Alımı"))
+        self.assertFalse(self.kpss("Hastanelere Temizlik Görevlisi ve Hizmetli Alımı: İŞKUR ilanları, ilkokul mezunu da başvurabilir"))
+
+    def test_baska_puan_turu_ve_duzey_degil(self):
+        self.assertFalse(self.kpss("Karatay Belediyesi 9 Zabıta Memuru Alacak: KPSS P93 60 Puan, Ön Lisans Mezunlarına Kadro"))
+        self.assertFalse(self.kpss("Kamu kurumlarına KPSS P3 ile lisans mezunu 500 sözleşmeli personel alınacak"))
+
+    def test_biyomedikal_ve_mühendis_ilanlari_degil(self):
+        self.assertFalse(self.kpss("Hastane KPSS ile sözleşmeli biyomedikal mühendisi alacak"))
+
+    def test_ilgisiz_profil_bildirilmez(self):
+        i = ilan_kaydi("Hastane KPSS ile lise mezunu 5 personel alacak")
+        self.assertTrue(a.orta_kpss_mi(i))
+        i["ilgisiz"] = ["orta"]
+        self.assertFalse(a.orta_kpss_mi(i))
+
+
+class OrtaogretimGizle(unittest.TestCase):
+    def test_lisans_gerektiren_kadro_gizlenir(self):
+        self.assertEqual(a.ilgisiz_profiller("Belediye uzman yardımcısı alacak, KPSS", ORTA_AYAR), ["orta"])
+        self.assertEqual(a.ilgisiz_profiller("Belediye veteriner alacak", ORTA_AYAR), ["bio", "orta"])
+
+    def test_basliktaki_lise_kadrosu_gizlemeyi_engeller(self):
+        self.assertEqual(a.ilgisiz_profiller("Belediye veteriner, hemşire ve zabıta memuru alacak", ORTA_AYAR), ["bio"])
+        self.assertEqual(a.ilgisiz_profiller("Üniversite lise mezunu müfettiş yardımcısı alacak", ORTA_AYAR), [])
+
+
+class OlayGrubu(unittest.TestCase):
+    def test_anahtar(self):
+        self.assertEqual(a.olay_anahtari("İzmir Büyükşehir Belediyesi 90 Zabıta Memuru Alacak"), ("izmir", "90", "zabita"))
+        self.assertEqual(a.olay_anahtari("90 zabıta memuru alınacak! KPSS şartı 65"), ("", "90", "zabita"))
+        self.assertEqual(a.olay_anahtari("Büyükşehir Belediyesi zabıta alıyor"), ("", "", "zabita"))
+
+    def test_ayni_olay(self):
+        k = a.olay_anahtari
+        self.assertTrue(a.ayni_olay(k("İzmir Büyükşehir Belediyesi 90 Zabıta Memuru Alacak"), k("İzBB 90 zabıta memuru alacak!")))
+        self.assertTrue(a.ayni_olay(k("Marmara Üniversitesi 63 Sözleşmeli Personel: Şoför ve Hizmetli"), k("Marmara Üniversitesi Lise Mezunu 63 Personel")))
+        self.assertFalse(a.ayni_olay(k("Eyyübiye Belediyesi 9 Zabıta Memuru Alacak"), k("Karatay Belediyesi 9 Zabıta Memuru Alacak")))
+        self.assertFalse(a.ayni_olay(k("İzmir Belediyesi 90 Zabıta Memuru Alacak"), k("Ankara Belediyesi 36 Zabıta Memuru Alacak")))
+
+    def test_olay_ata_ilk_haber_grubun_anahtari(self):
+        def i(kimlik, baslik):
+            return {"id": kimlik, "baslik": baslik, "seviye": "orta", "gercekler": {"egitim": []}}
+        liste = [i("c", "90 zabıta memuru alınacak! KPSS şartı 65"), i("b", "İzBB 90 zabıta memuru alacak!"),
+                 i("a", "İzmir Büyükşehir Belediyesi 90 Zabıta Memuru Alacak"), i("x", "Eyyübiye Belediyesi 9 Zabıta Memuru Alacak")]
+        sonuc = a.olay_ata(liste)                                   # yeniden eskiye: "a" en eski
+        self.assertEqual(set(sonuc), {"a", "b", "c"})
+        self.assertEqual(len(set(sonuc.values())), 1)
+        self.assertNotIn("x", sonuc)                                # tek haberli olay işaretlenmez
 
 
 class Yardimci(unittest.TestCase):

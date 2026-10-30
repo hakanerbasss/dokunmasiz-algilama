@@ -397,9 +397,160 @@ HAT = {"ad": "Deneme dönemi", "baslangic": "2026-12-17", "bitis": "2026-12-24",
        "not": "Kılavuzda 'Biyomedikal' ara.", "baglanti": "https://osym.test/"}
 
 
+class OrtaogretimBildirimi(Taban):
+    """Anonim ortaöğretim profili: ortaöğretim KPSS puanıyla alım yapan her yeni ilan, puan/yaş aranmadan bildirilir."""
+    IZMIR = ("İzmir Büyükşehir Belediyesi 90 Zabıta Memuru Alacak: 65 KPSS ile Başvuru", "https://haber.test/orta1", "")
+    IZMIR_2 = ("90 zabıta memuru alınacak! KPSS şartı 65", "https://haber.test/orta2", "")
+
+    def setUp(self):
+        super().setUp()
+        self.ayar({**AYAR, "orta_bildirimi": True, "analiz_surumu": 2,
+                   "profiller": [{"id": "bio", "ad": "Biyomedikal"},
+                                 {"id": "orta", "ad": "Ortaöğretim", "isci_dahil": True, "egitim": "ortaogretim"}],
+                   "kaynaklar": [{"ad": "Deneme RSS", "tur": "rss", "url": "https://haber.test/feed"}]})
+        self.sayfalar["https://haber.test/feed"] = rss(("Jaguar yeni model tanıttı", "https://haber.test/0", ""))
+        tara.calistir()                       # ilk çalışma: açık ortaöğretim ilanı yok, özet gönderilmez ama başlangıç işaretlenir
+        self.bildirimler.clear()
+
+    def orta(self):
+        return [b for b in self.bildirimler if "Ortaöğretim" in b[0][1]]
+
+    def test_ilk_ortaogretim_ilani_bildirilir_puan_yas_sormadan(self):
+        self.sayfalar["https://haber.test/feed"] = rss(self.IZMIR)
+        tara.calistir()
+        self.assertEqual(len(self.bildirimler), 1)
+        (konu, baslik, mesaj), kw = self.bildirimler[0]
+        self.assertEqual(konu, "deneme-konu-12345")              # ayrı konu yoksa ana konuya gider
+        self.assertEqual(baslik, "🏫 Ortaöğretim KPSS ilanı")
+        self.assertIn("KPSS taban ≥ 65", mesaj)
+        self.assertEqual(kw["tikla"], "https://haber.test/orta1")
+        kayit = self.ilanlar()["ilanlar"][0]
+        self.assertTrue(kayit["orta_kpss"])
+        self.assertEqual(kayit["gercekler"]["egitim"], [])
+
+    def test_ayni_ilani_anlatan_haberler_tek_bildirim(self):
+        self.sayfalar["https://haber.test/feed"] = rss(self.IZMIR, self.IZMIR_2)
+        tara.calistir()
+        self.assertEqual(len(self.orta()), 1)
+        kayitlar = self.ilanlar()["ilanlar"]
+        self.assertEqual(len({i["olay"] for i in kayitlar}), 1)         # sayfada tek kart olarak gruplanır
+        self.bildirimler.clear()
+        self.sayfalar["https://haber.test/feed"] = rss(self.IZMIR, self.IZMIR_2,
+                                                       ("İzBB 90 zabıta memuru alacak! KPSS 65", "https://haber.test/orta3", ""))
+        tara.calistir()
+        self.assertEqual(self.orta(), [])                               # aynı olayın yeni haberi bir daha bildirilmez
+
+    def test_farkli_ilanlar_ayri_bildirilir(self):
+        self.sayfalar["https://haber.test/feed"] = rss(
+            ("Eyyübiye Belediyesi 9 Zabıta Memuru Alacak, KPSS 60", "https://haber.test/a", ""),
+            ("Karatay Belediyesi 9 Zabıta Memuru Alacak, KPSS 60", "https://haber.test/b", ""))
+        tara.calistir()
+        self.assertEqual(len(self.orta()), 2)
+
+    def test_kpssiz_lisans_ve_bilgi_haberi_bildirilmez(self):
+        self.sayfalar["https://haber.test/feed"] = rss(
+            ("ROKETSAN personel alıyor: KPSS şartı yok, itfaiye eri alımı", "https://haber.test/c", ""),
+            ("Kamu kurumlarına KPSS P3 ile lisans mezunu 500 sözleşmeli personel alınacak", "https://haber.test/d", ""),
+            ("2026-KPSS Ortaöğretim Başvuru Kılavuzu", "https://haber.test/e", ""))
+        tara.calistir()
+        self.assertEqual(self.orta(), [])
+
+    def test_orta_ilani_biyomedikal_listesine_ve_bildirimine_karismaz(self):
+        self.sayfalar["https://haber.test/feed"] = rss(self.IZMIR)
+        tara.calistir()
+        self.assertEqual([b for b in self.bildirimler if "Biyomedikal" in b[0][1] or "Mühendis" in b[0][1]], [])
+
+    def test_ayri_konu_varsa_oraya_gider(self):
+        self.sayfalar["https://haber.test/feed"] = rss(self.IZMIR)
+        with mock.patch.dict(os.environ, {"NTFY_TOPIC_ORTA": "ortaogretim-konu-1"}):
+            tara.calistir()
+        konular = [b[0][0] for b in self.bildirimler]
+        self.assertIn("ortaogretim-konu-1", konular)
+        self.assertEqual(len(self.orta()), 1)
+
+    def test_bildirim_ayari_kapaliysa_gonderilmez(self):
+        self.ayar({**AYAR, "orta_bildirimi": False, "analiz_surumu": 2, "profiller": [{"id": "orta", "ad": "x", "egitim": "ortaogretim"}],
+                   "kaynaklar": [{"ad": "Deneme RSS", "tur": "rss", "url": "https://haber.test/feed"}]})
+        self.sayfalar["https://haber.test/feed"] = rss(self.IZMIR)
+        tara.calistir()
+        self.assertEqual(self.bildirimler, [])
+        self.assertTrue(self.ilanlar()["ilanlar"][0]["orta_kpss"])          # sayfada yine görünür
+
+    def test_ilk_acilista_acik_ilanlar_tek_ozetle_gelir(self):
+        shutil_durum = self.veri / "durum.json"
+        durum = json.loads(shutil_durum.read_text(encoding="utf-8"))
+        durum.pop("orta_basladi")                                           # bildirim yeni açılmış gibi
+        shutil_durum.write_text(json.dumps(durum), encoding="utf-8")
+        self.sayfalar["https://haber.test/feed"] = rss(self.IZMIR, self.IZMIR_2,
+                                                       ("Eyyübiye Belediyesi 9 Zabıta Memuru Alacak, KPSS 60", "https://haber.test/a", ""))
+        tara.calistir()
+        self.assertEqual(len(self.orta()), 1)
+        (konu, baslik, mesaj), kw = self.orta()[0]
+        self.assertIn("takibi başladı: 2 açık ilan", baslik)                # iki haber grubu = iki olay
+        self.assertTrue(kw["tikla"].endswith("?profil=orta"))
+        self.bildirimler.clear()
+        tara.calistir()
+        self.assertEqual(self.bildirimler, [])                               # özet bir kez gider
+
+
+class YenidenTarama(Taban):
+    """ayar.analiz_surumu artınca görülüp kaydedilmemiş ilanlar yeniden değerlendirilir; bildirim göndermez, yinelenmez."""
+    def setUp(self):
+        super().setUp()
+        self.ayar({**AYAR, "orta_bildirimi": True, "analiz_surumu": 1,
+                   "profiller": [{"id": "orta", "ad": "Ortaöğretim", "isci_dahil": True, "egitim": "ortaogretim"}],
+                   "kaynaklar": [{"ad": "Deneme RSS", "tur": "rss", "url": "https://haber.test/feed"}]})
+        self.sayfalar["https://haber.test/feed"] = rss(("Jaguar yeni model tanıttı", "https://haber.test/0", ""),
+                                                       ("Kamu Üniversitesine 60 KPSS Puanla En Az Lise Personel Alımı", "https://haber.test/1", ""))
+        tara.calistir()
+        self.bildirimler.clear()
+
+    def test_kayitli_ilan_yinelenmez_ve_kaydedilmemis_ilan_bildirimsiz_eklenir(self):
+        durum_yolu = self.veri / "durum.json"
+        durum = json.loads(durum_yolu.read_text(encoding="utf-8"))
+        eski_say = len(self.ilanlar()["ilanlar"])
+        # Eski kural "Jaguar" ilanını da, aşağıdaki ilanı da görmüş ama kaydetmemişti
+        durum["gorulen"][tara.kisa_id("https://haber.test/2")] = "2026-10-08"
+        durum["gorulen"]["t:" + tara.kisa_id(tara.analiz.fold("Marmara Üniversitesi 63 Sözleşmeli Personel Alacak: Lise Mezunu Büro Personeli")[:90])] = "2026-10-08"
+        durum_yolu.write_text(json.dumps(durum), encoding="utf-8")
+        self.ayar({**AYAR, "orta_bildirimi": True, "analiz_surumu": 2,
+                   "profiller": [{"id": "orta", "ad": "Ortaöğretim", "isci_dahil": True, "egitim": "ortaogretim"}],
+                   "kaynaklar": [{"ad": "Deneme RSS", "tur": "rss", "url": "https://haber.test/feed"}]})
+        self.sayfalar["https://haber.test/feed"] = rss(
+            ("Jaguar yeni model tanıttı", "https://haber.test/0", ""),
+            ("Kamu Üniversitesine 60 KPSS Puanla En Az Lise Personel Alımı", "https://haber.test/1", ""),
+            ("Marmara Üniversitesi 63 Sözleşmeli Personel Alacak: Lise Mezunu Büro Personeli", "https://haber.test/2", ""))
+        tara.calistir()
+        kayitlar = self.ilanlar()["ilanlar"]
+        self.assertEqual(len(kayitlar), eski_say + 1)                       # eskisi yinelenmedi, yenisi eklendi
+        self.assertEqual(sorted(i["url"] for i in kayitlar).count("https://haber.test/1"), 1)
+        self.assertEqual(self.bildirimler, [])                              # yeniden değerlendirme bildirim göndermez
+        self.assertEqual(json.loads(durum_yolu.read_text(encoding="utf-8"))["analiz_surumu"], 2)
+        tara.calistir()
+        self.assertEqual(len(self.ilanlar()["ilanlar"]), eski_say + 1)
+
+    def test_eski_kayitlara_egitim_ve_orta_bayragi_eklenir(self):
+        d = self.ilanlar()
+        for i in d["ilanlar"]:
+            i["gercekler"].pop("egitim", None)
+            i.pop("orta_kpss", None)
+        (self.veri / "ilanlar.json").write_text(json.dumps(d), encoding="utf-8")
+        tara.calistir()
+        kayit = [i for i in self.ilanlar()["ilanlar"] if i["url"] == "https://haber.test/1"][0]
+        self.assertEqual(kayit["gercekler"]["egitim"], ["ortaogretim"])
+        self.assertTrue(kayit["orta_kpss"])
+
+
 class HatirlatmaMantigi(unittest.TestCase):
     def bul(self, gun, gonderilen=()):
         return tara.hatirlatma_bul({"hatirlatmalar": [HAT]}, dt.date.fromisoformat(gun), set(gonderilen))
+
+    def test_profile_ozel_hatirlatma_yalniz_ilgili_profile_gider(self):
+        ayar = {"hatirlatmalar": [{**HAT, "profiller": ["bio", "ceei"]}]}
+        bugun = dt.date.fromisoformat("2026-12-17")
+        self.assertEqual(len(tara.hatirlatma_bul(ayar, bugun, set(), "bio")), 1)
+        self.assertEqual(tara.hatirlatma_bul(ayar, bugun, set(), "orta"), [])
+        self.assertEqual(len(tara.hatirlatma_bul(ayar, bugun, set())), 1)              # profil verilmezse süzülmez
 
     def test_esikler(self):
         self.assertEqual(self.bul("2026-12-02"), [])                                    # 15 gün kala: henüz değil

@@ -3,6 +3,7 @@
 
 Ortam değişkenleri (hepsi isteğe bağlı):
   NTFY_TOPIC   bildirim konusu (GitHub Secret). Yoksa bildirim gönderilmez.
+  NTFY_TOPIC_ORTA  ortaöğretim (lise) KPSS ilanları için ayrı konu; yoksa NTFY_TOPIC kullanılır.
   PROFIL_JSON  {"dogum_yili":1988,"puanlar":{"P1":..,"P2":..,"P3":..}} (GitHub Secret).
                Varsa puanı/yaşı tutmayan ilanlar için bildirim gönderilmez.
   VERI_DIZINI  data/ yerine başka bir klasöre yaz (yerel deneme).
@@ -277,7 +278,7 @@ def ozet(ilan, ayar):
     return " · ".join(parcalar)
 
 
-EMOJI = {"guclu": "🔥", "olasi": "⚙️", "lisans": "📄", "toplu": "🏛️", "belediye": "🏛️", "profil": "🏛️"}
+EMOJI = {"guclu": "🔥", "olasi": "⚙️", "lisans": "📄", "toplu": "🏛️", "belediye": "🏛️", "profil": "🏛️", "orta": "🏫"}
 
 
 def bildirim_basligi(i):
@@ -306,6 +307,50 @@ def bildir(konu, yeniler, ayar, sayfa_url, ilk):
         uyari = "\n⚠ İlan metni okunamadı; bölüm ve puan şartını ilanda kontrol et." if i.get("metin_yok") else ""
         ntfy_gonder(konu, bildirim_basligi(i), f"{i['baslik']}\n{ozet(i, ayar)}{uyari}".strip(), tikla=i["url"],
                     oncelik=oncelik)             # başlıkta zaten emoji var; etiket eklenirse çift görünür
+
+
+def orta_bildirilebilir(ilan, simdi):
+    """Ortaöğretim KPSS ilanı mı (kişisel puan/yaş aranmaz: profil anonimdir) ve yeterince yeni mi?"""
+    if not analiz.orta_kpss_mi(ilan):
+        return False
+    if ilan["tarih"]:
+        yas = simdi - dt.datetime.strptime(ilan["tarih"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
+        if yas.days > BILDIRIM_GUN:
+            return False
+    return True
+
+
+def orta_olaylari(ilanlar, yeni_idler=None, simdi=None):
+    """Bildirilecek ortaöğretim KPSS olayları (yeniden eskiye): her olaydan tek ilan.
+
+    yeni_idler verilirse yalnızca bu çalıştırmada gelenler; ama aynı olayın daha önce kaydedilmiş (zaten bildirilmiş/özetlenmiş)
+    bir haberi varsa olay yeni sayılmaz. Verilmezse (açılış özeti) bildirilebilir tüm açık ilanlar olay başına bir kez."""
+    eski_olaylar = {i["olay"] for i in ilanlar if i.get("olay") and yeni_idler is not None and i["id"] not in yeni_idler
+                    and i.get("orta_kpss")}
+    secilen, gorulen = [], set()
+    for i in ilanlar:
+        if (yeni_idler is not None and i["id"] not in yeni_idler) or not orta_bildirilebilir(i, simdi or simdi_al()):
+            continue
+        olay = i.get("olay") or i["id"]
+        if olay in eski_olaylar or olay in gorulen:
+            continue
+        gorulen.add(olay)
+        secilen.append(i)
+    return secilen
+
+
+def bildir_orta(konu, ilanlar, ayar, sayfa_url, baslangic=False):
+    if not ilanlar:
+        return
+    sayfa = sayfa_url + "?profil=orta" if sayfa_url else None
+    if baslangic or len(ilanlar) > 5:
+        satirlar = ["🏫 " + i["baslik"][:90] for i in ilanlar[:8]]
+        baslik = (f"Ortaöğretim KPSS takibi başladı: {len(ilanlar)} açık ilan" if baslangic
+                  else f"{len(ilanlar)} yeni ortaöğretim KPSS ilanı")
+        ntfy_gonder(konu, baslik, "\n".join(satirlar) + (f"\n\nTümü: {sayfa}" if sayfa else ""), tikla=sayfa, oncelik=3)
+        return
+    for i in ilanlar:
+        ntfy_gonder(konu, "🏫 Ortaöğretim KPSS ilanı", f"{i['baslik']}\n{ozet(i, ayar)}".strip(), tikla=i["url"], oncelik=3)
 
 
 # ---------------------------------------------------------------- ana akış
@@ -338,14 +383,17 @@ def bildirilebilir(ilan, profil_elemesi, simdi, seviyeler=VARSAYILAN_BILDIRIM, p
     return True
 
 
-def hatirlatma_bul(ayar, bugun, gonderilen):
+def hatirlatma_bul(ayar, bugun, gonderilen, profil_id=None):
     """Tarihli hatırlatmalardan şimdi gönderilmesi gerekenleri döndürür.
 
     Her hatırlatma için `gunler_once` (örn. [14, 3, 0]) günlerinden gelmiş olanların EN YAKINI tek bildirim olur;
     akış o gün çalışmamış olsa da kaçan eski eşikler için ayrıca bildirim gönderilmez.
+    Hatırlatmada `profiller` listesi varsa yalnızca bildirimi alan profil (profil_id) o listedeyse gönderilir.
     -> [(işaretlenecek_anahtarlar, başlık, mesaj, bağlantı)]"""
     sonuc = []
     for h in ayar.get("hatirlatmalar", []):
+        if profil_id and h.get("profiller") and profil_id not in h["profiller"]:
+            continue
         bas = dt.date.fromisoformat(h["baslangic"])
         bit = dt.date.fromisoformat(h.get("bitis", h["baslangic"]))
         if bugun > bit:
@@ -376,6 +424,11 @@ def calistir(kuru=False, sifirla=False):
     if konu and not re.fullmatch(r"[A-Za-z0-9_-]{8,64}", konu):
         print("UYARI: NTFY_TOPIC geçersiz (8-64 harf/rakam/-/_); bildirim kapalı.")
         konu = ""
+    konu_orta = (os.environ.get("NTFY_TOPIC_ORTA") or "").strip()
+    if konu_orta and not re.fullmatch(r"[A-Za-z0-9_-]{8,64}", konu_orta):
+        print("UYARI: NTFY_TOPIC_ORTA geçersiz (8-64 harf/rakam/-/_); ana konu kullanılacak.")
+        konu_orta = ""
+    konu_orta = konu_orta or konu      # ayrı konu yoksa ana konuya gider (başlık 🏫 ile ayrılır)
     try:
         profil = json.loads(os.environ.get("PROFIL_JSON") or "null")
     except ValueError:
@@ -424,6 +477,10 @@ def calistir(kuru=False, sifirla=False):
                 if yeni_g[k] and i["gercekler"].get(k) != yeni_g[k]:
                     i["gercekler"][k] = yeni_g[k]
                     tazelendi = True
+    for i in ilanlar:       # öğrenim düzeyi sonradan eklendi: kayıtlı ilanlar için başlıktan hesaplanır
+        if "egitim" not in i["gercekler"]:
+            i["gercekler"]["egitim"] = analiz.egitim_duzeyleri(analiz.fold(i["baslik"]))
+            tazelendi = True
     for i in ilanlar:       # gizle listesi değişince eski kayıtların "ilgisiz" bilgisi de güncellenir
         if i["seviye"] in analiz.GIZLENEBILIR:
             yeni_il = analiz.ilgisiz_profiller(i["baslik"], ayar)
@@ -433,13 +490,30 @@ def calistir(kuru=False, sifirla=False):
                 else:
                     i.pop("ilgisiz", None)
                 tazelendi = True
+    for i in ilanlar:       # ortaöğretim KPSS bayrağı (sayfadaki "KPSS puanına göre" listesi ve bildirim); kurallar değişince güncellenir
+        if analiz.orta_kpss_mi(i) != bool(i.get("orta_kpss")):
+            if analiz.orta_kpss_mi(i):
+                i["orta_kpss"] = True
+            else:
+                i.pop("orta_kpss", None)
+            tazelendi = True
     for i in ilanlar:       # bu bayraktan önce kaydedilmiş ilanlar: Google Haberler ve Kariyer Kapısı yalnızca başlık verir
         if "metin_yok" not in i and (i["kaynak"].startswith("Google Haberler") or kk_guid(i["url"])):
             i["metin_yok"] = True
     seviyeler = tuple(ayar.get("bildirim_seviyeleri", VARSAYILAN_BILDIRIM))
     bildirim_profili = ayar.get("bildirim_profili", "bio")
+    # Sınıflama kuralları genişleyince (ayar.analiz_surumu): daha önce elenip kaydedilmemiş ilanlar yeniden değerlendirilir.
+    # Kayıtlı ilanlar yinelenmez; yeniden değerlendirilenler bildirim göndermez.
+    eski_gorulen = set()
+    if not ilk and durum.get("analiz_surumu", 1) < ayar.get("analiz_surumu", 1):
+        eski_gorulen = set(gorulen)
+        saklanan = {i["id"] for i in ilanlar} | {"t:" + kisa_id(analiz.fold(i["baslik"])[:90]) for i in ilanlar}
+        for k in [k for k in gorulen if k not in saklanan]:
+            del gorulen[k]
+        tazelendi = True
+        print("Sınıflama sürümü değişti: görülmüş ama kaydedilmemiş ilanlar yeniden değerlendiriliyor.")
     tk_gorulen = {k for k in gorulen if k.startswith("t:")}
-    yeniler, detay, kk = [], 0, KkApi(bool(ayar.get("kk_api", False)))
+    yeniler, orta_yeniler, detay, kk = [], [], 0, KkApi(bool(ayar.get("kk_api", False)))
 
     def kaydet(o, govde, ayrinti, ilk_gorulme):
         d = analiz.degerlendir(o["baslik"], govde, ayar, profil, yil=bugun.year, resmi=o.get("resmi", False))
@@ -458,6 +532,8 @@ def calistir(kuru=False, sifirla=False):
             ilan["ilgisiz"] = d["ilgisiz"]          # hangi profiller için başka bir mesleğin kadrosu (gizlenir, bildirilmez)
         if len((govde or "").strip()) < METIN_ESIGI:
             ilan["metin_yok"] = True        # yalnızca başlıkla sınıflandı: bölüm/puan şartı bilinmiyor
+        if analiz.orta_kpss_mi(ilan):
+            ilan["orta_kpss"] = True        # ortaöğretim KPSS puanıyla alım (ortaöğretim profilinin listesi ve bildirimi)
         return ilan, d
 
     simdi_s = simdi.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -465,6 +541,7 @@ def calistir(kuru=False, sifirla=False):
         tk = "t:" + kisa_id(analiz.fold(o["baslik"])[:90])
         if o["id"] in gorulen or tk in tk_gorulen:
             continue
+        tekrar = o["id"] in eski_gorulen or tk in eski_gorulen        # yeniden değerlendirme: yeni ilan sayılmaz
         gorulen[o["id"]] = gorulen[tk] = bugun.isoformat()
         tk_gorulen.add(tk)
         if (analiz.sinifla(o["baslik"], o["govde"], o.get("resmi", False), analiz.izlenen_mi(o["baslik"], ayar)) is None
@@ -478,15 +555,19 @@ def calistir(kuru=False, sifirla=False):
             govde = (metin or "") + "\n" + o.get("kategori", "")
         elif not govde and "news.google.com" not in o["url"] and detay < DETAY_SINIRI:
             govde, detay = govde_getir(o["url"]), detay + 1
-        ilan, d = kaydet(o, govde, ayrinti, simdi_s)
+        ilan, d = kaydet(o, govde, ayrinti, (o["tarih"] or simdi_s) if tekrar else simdi_s)
         if ilan is None:
             continue
         if guid and ayrinti is None:
             ilan["nedenler"] = ["Resmî Kariyer Kapısı ilanı: kadro listesi ve şartlar ilan sayfasında (otomatik okunamıyor)"]
         ilanlar.append(ilan)
         print(f"  + [{d['seviye']:6}] {o['baslik'][:100]}" + (f"   (eleme: {'; '.join(d['elendi'] + d['elendi_profil'])})" if d["elendi"] or d["elendi_profil"] else ""))
+        if tekrar:
+            continue
         if bildirilebilir(ilan, d["elendi_profil"], simdi, seviyeler, bildirim_profili):
             yeniler.append(ilan)
+        if orta_bildirilebilir(ilan, simdi):
+            orta_yeniler.append(ilan)
 
     # Ayrıntısı alınamamış resmî ilanları yeniden dene (API geçici olarak kapalı olabilir).
     sinir_tekrar = (bugun - dt.timedelta(days=KK_TEKRAR_GUN)).isoformat()
@@ -520,6 +601,12 @@ def calistir(kuru=False, sifirla=False):
     eski_sinir = (bugun - dt.timedelta(days=ESKI_GUN)).isoformat()
     ilanlar = [i for i in ilanlar if i["seviye"] in ("guclu", "olasi", "lisans") or i["ilk_gorulme"][:10] >= eski_sinir]
     ilanlar = ilanlar[:ILAN_SINIRI]
+    olaylar = analiz.olay_ata(ilanlar)      # aynı ilanı anlatan haberler tek olay: sayfada tek kart, bildirimde tek mesaj
+    for i in ilanlar:
+        if i["id"] in olaylar:
+            i["olay"] = olaylar[i["id"]]
+        else:
+            i.pop("olay", None)
     sinir = (bugun - dt.timedelta(days=GORULEN_GUN)).isoformat()
     durum["gorulen"] = {k: v for k, v in gorulen.items() if v >= sinir}
 
@@ -546,6 +633,7 @@ def calistir(kuru=False, sifirla=False):
             "baslangic": ayar["baslangic_tarihi"], "bitis": ayar["bitis_tarihi"], "depo": depo,
             "ayar": ayar_yankisi, "kaynaklar": kaynak_durumlari, "ilanlar": ilanlar})
         durum["son_kayit"] = bugun.isoformat()
+        durum["analiz_surumu"] = ayar.get("analiz_surumu", 1)
         durum["son_yazma"] = simdi.strftime("%Y-%m-%dT%H:%M:%S+00:00")
         yaz_json(VERI / "durum.json", durum)
 
@@ -557,11 +645,24 @@ def calistir(kuru=False, sifirla=False):
         except Exception as e:  # noqa: BLE001 - bildirim hatası veri kaydını bozmamalı
             print(f"UYARI: bildirim gönderilemedi: {e}")
 
+    # 4b) ortaöğretim (anonim profil): ortaöğretim KPSS puanıyla alım yapan her yeni ilan, puan/yaş aranmadan bildirilir
+    if konu_orta and not kuru and ayar.get("orta_bildirimi"):
+        try:
+            if durum.get("orta_basladi") != kisa_id(konu_orta):
+                bildir_orta(konu_orta, orta_olaylari(ilanlar, None, simdi), ayar, sayfa_url, baslangic=True)
+                durum["orta_basladi"] = kisa_id(konu_orta)       # konu değişirse özet yeniden gönderilir
+                yaz_json(VERI / "durum.json", durum)
+            else:
+                bildir_orta(konu_orta, [i for i in orta_olaylari(ilanlar, {y["id"] for y in orta_yeniler}, simdi)
+                                        if konu_orta != konu or i not in yeniler], ayar, sayfa_url)
+        except Exception as e:  # noqa: BLE001
+            print(f"UYARI: ortaöğretim bildirimi gönderilemedi: {e}")
+
     # 5) tarihli hatırlatmalar (yalnızca başarıyla gönderilince "gönderildi" diye işaretlenir)
     if konu and not kuru:
         gonderilen = set(durum.get("hatirlatma", []))
         degisti_h = False
-        for anahtarlar, baslik, mesaj, baglanti in hatirlatma_bul(ayar, bugun, gonderilen):
+        for anahtarlar, baslik, mesaj, baglanti in hatirlatma_bul(ayar, bugun, gonderilen, bildirim_profili):
             try:
                 ntfy_gonder(konu, baslik, mesaj, tikla=baglanti, oncelik=4)
             except Exception as e:  # noqa: BLE001
