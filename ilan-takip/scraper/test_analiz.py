@@ -551,6 +551,26 @@ class OrtaogretimGizle(unittest.TestCase):
         self.assertEqual(a.ilgisiz_profiller("Üniversite lise mezunu müfettiş yardımcısı alacak", ORTA_AYAR), [])
 
 
+class OrtaogretimIl(unittest.TestCase):
+    def il(self, baslik):
+        return a.degerlendir(baslik, "", ORTA_AYAR)["gercekler"]["iller"]
+
+    def test_istanbul_kurumlari_il_adi_olmadan_tanınır(self):
+        self.assertEqual(self.il("İBB 500 personel alacak, KPSS şartı"), ["İstanbul"])
+        self.assertEqual(self.il("Marmara Üniversitesi Lise Mezunu 63 Personel Alımı"), ["İstanbul"])
+        self.assertEqual(self.il("Gaziosmanpaşa Belediyesi 36 Zabıta Memuru Alacak"), ["İstanbul"])
+        self.assertEqual(self.il("Sağlık Bakanlığı güvenlik görevlisi alımı"), [])
+
+    def test_il_uygun(self):
+        def ilan(baslik):
+            return {"gercekler": a.degerlendir(baslik, "", ORTA_AYAR)["gercekler"]}
+        self.assertTrue(a.orta_il_uygun(ilan("Gaziosmanpaşa Belediyesi 36 Zabıta Memuru Alacak"), ["İstanbul"]))
+        self.assertTrue(a.orta_il_uygun(ilan("İstanbul ve Ankara'da lise mezunu personel alımı, KPSS"), ["İstanbul"]))
+        self.assertFalse(a.orta_il_uygun(ilan("İzmir Büyükşehir Belediyesi 90 Zabıta Memuru Alacak"), ["İstanbul"]))
+        self.assertFalse(a.orta_il_uygun(ilan("Sağlık Bakanlığı güvenlik görevlisi alımı"), ["İstanbul"]))      # il yazmıyor
+        self.assertTrue(a.orta_il_uygun(ilan("Sağlık Bakanlığı güvenlik görevlisi alımı"), None))                # sınırsız profil
+
+
 class OlayGrubu(unittest.TestCase):
     def test_anahtar(self):
         self.assertEqual(a.olay_anahtari("İzmir Büyükşehir Belediyesi 90 Zabıta Memuru Alacak"), ("izmir", "90", "zabita"))

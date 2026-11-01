@@ -246,9 +246,11 @@ function degerlendir(i, p, ayar, prof) {
   else if (i.metin_yok && ["guclu", "olasi", "lisans"].includes(i.seviye)) uyar.push("Metin okunamadı — bölüm ve puan şartını ilanda kontrol et");
   const tercih = new Set(ayar.tercih_iller || []), yakin = new Set(ayar.yakin_iller || []), engel = new Set(ayar.engelli_iller || []);
   const tumIller = !!(prof && prof.tum_iller);
-  for (const il of g.iller || []) iller.push([il, tumIller ? "" : tercih.has(il) ? "iyi" : yakin.has(il) ? "" : engel.has(il) ? "kotu" : ""]);
+  const profIller = (prof && prof.iller) || null;        // yalnızca bu illerle sınırlı profil (ör. ortaöğretim: İstanbul)
+  for (const il of g.iller || []) iller.push([il, profIller ? (profIller.includes(il) ? "iyi" : "kotu") : tumIller ? "" : tercih.has(il) ? "iyi" : yakin.has(il) ? "" : engel.has(il) ? "kotu" : ""]);
   // Sunucu elemeleri biyomedikal profiline göre (doğu illeri, lise/ön lisans) yapılır; diğer profillerde gevşetilir.
-  if (tumIller) red = red.filter((r) => !/^İl tercihin dışında/.test(r));
+  if (tumIller || profIller) red = red.filter((r) => !/^İl tercihin dışında/.test(r));
+  if (profIller && (g.iller || []).length && !g.iller.some((il) => profIller.includes(il))) red.push(`Başka il: ${g.iller.join(", ")}`);
   if (orta) {
     // Sunucu "lise/ön lisans düzeyi" ve KPSS yılı elemelerini biyomedikal profiline göre yapar; ortaöğretim profilinde lise düzeyi ARANAN şarttır.
     red = red.filter((r) => !/^Lise\/ön lisans düzeyi/.test(r) && !(prof.kpss_yili_sor && /KPSS puanı esas alınıyor/.test(r)));
@@ -289,8 +291,13 @@ function kova(i, d) {
     const duzey = (i.gercekler || {}).egitim || [];
     // Başlığında lise düzeyi/kadro geçen toplu alımlar "genel"; hiç düzey belirtmeyenler (çoğu üniversite/bakanlık haberi) ayrı listede.
     const kanit = i.seviye === "orta" || i.orta_kpss || duzey.includes("ortaogretim") || duzey.includes("ilkogretim");
-    if (d.red.some((r) => /^Düzey:/.test(r))) return "gizli";                // lisans/ön lisans isteyen ilan lise profilinde gürültüdür
+    if (d.red.some((r) => /^(Düzey|Başka il):/.test(r))) return "gizli";     // lisans/ön lisans isteyen ya da başka ilin ilanı bu profilde hiç gösterilmez
     if (d.red.length) return kanit || i.seviye === "belediye" ? "elenen" : "gizli";   // puan/yıl/yaş yetmeyen: yalnızca lise düzeyi belli olanlar listelenir
+    if (prof.iller && !((i.gercekler || {}).iller || []).length) {
+      // İl anmayan ilan: İstanbul'un bütün ilçe belediyeleri tanınır, yani il anmayan belediye ilanı başka bir ilindir. İl anmayan ulusal
+      // alımların kapsamı belli değildir; "başka ilden gelmesin" için gizlenir, yalnızca profilde il_yok_goster açıksa ayrı sekmede durur.
+      return prof.il_yok_goster && kanit && i.seviye !== "belediye" ? "ilyok" : "gizli";
+    }
     if (i.orta_kpss) return "kpss";                                           // ortaöğretim KPSS puanıyla alım (bildirim de bunlar için gider)
     if (i.seviye === "belediye") return "belediye";
     return kanit ? "genel" : "belirsiz";
@@ -327,7 +334,7 @@ function sekmeler() {
   }
   if (prof.egitim === "ortaogretim") {
     return [["kpss", "KPSS puanına göre"], ["genel", "Genel alımlar"], ["belediye", "Belediye ilanları"],
-            ["belirsiz", "Düzeyi belirsiz"], ["elenen", "Elenenler"]];
+            ...(prof.iller && prof.il_yok_goster ? [["ilyok", "İl yazmıyor"]] : []), ["belirsiz", "Düzeyi belirsiz"], ["elenen", "Elenenler"]];
   }
   return [["bolumum", (prof.kisa || prof.ad) + " (bölümüm)"], ["lisans", "Herhangi lisans"], ["belediye", "Belediye ilanları"],
           ["toplu", "Toplu alım"], ["elenen", "Elenenler"]];
@@ -400,6 +407,8 @@ function ciz() {
   if (!secili.length) {
     liste.append(el("div", { class: "bos" }, ["bio", "biosiz"].includes(SEKME)
       ? "Şu an bu türde açık ilan yok. Tarama her 3 saatte bir çalışıyor; çıkınca burada görünür ve bildirim gelir."
+      : SEKME === "ilyok"
+        ? "Başlığında il geçmeyen (genelde ulusal) lise düzeyi alımlar burada. Kadro İstanbul'a düşebilir; ilanı açıp bak. Bildirim gelmez."
       : SEKME === "belirsiz"
         ? "Başlığında öğrenim düzeyi geçmeyen toplu alımlar burada. Kadro listesinde lise düzeyi olabilir; ilanı açıp bak."
       : SEKME === "kpss" && prof.egitim
@@ -555,6 +564,7 @@ function profilSecimiBagla() {
   $("#profilNot").textContent = prof.anonim
     ? "Anonim profil: puan ve doğum yılı girmen gerekmez. Girersen puanı ya da yaşı tutmayan ilanlar Elenenler'e düşer. Bildirim, ortaöğretim KPSS puanıyla alım yapan her yeni ilan için puana bakmadan gider."
     : prof.tum_iller ? "Bu profilde tüm iller ve tüm belediyeler (işçi, memur, sözleşmeli) gösterilir." : "";
+  if (prof.iller) $("#profilNot").textContent += ` Yalnızca ${prof.iller.join(", ")} ilanları gösterilir ve bildirilir (ilçe belediyeleri dahil); başka ilin ve il yazmayan ilanlar gelmez.`;
   profilFormuKur();
 }
 

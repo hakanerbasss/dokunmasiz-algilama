@@ -63,7 +63,7 @@ Bir profile doğrudan bağlantı da verilebilir: `.../ilan-takip/?profil=ceei` (
 | Biyomedikal Mühendisi | Yukarıdaki sekmelerin hepsi (doğu illeri elenir, İstanbul çevresi öne çıkar) |
 | Çalışma Ekonomisi ve Endüstri İlişkileri | **Tüm iller**, **tüm belediyeler** (işçi, memur, sözleşmeli); sekmeler: bölümüne uyanlar, herhangi lisans, belediye ilanları, toplu alım |
 | Kendi bölümüm (yaz) | Yazdığın kelimelere uyan ilanlar + herhangi lisans + belediye ilanları (tüm iller) |
-| Ortaöğretim (lise) KPSS · anonim | Lise düzeyi alımlar, **tüm iller**; ayrıntısı aşağıda |
+| Ortaöğretim (lise) KPSS · anonim | Lise düzeyi alımlar, **yalnızca İstanbul**; ayrıntısı aşağıda |
 
 - Bölüme uyma, ilan başlığında ya da (okunabiliyorsa) metninde profilin `anahtarlar` listesindeki kelimenin geçmesiyle
   anlaşılır (`ayar.json` → `profiller`). Haber başlıklarında bölüm adı nadiren geçtiği için bu sekme çoğu zaman boş
@@ -102,6 +102,12 @@ telefonda saklanır) puanı/yılı/yaşı tutmayanlar *Elenenler*'e düşer.
 | Düzeyi belirsiz | Başlığında öğrenim düzeyi geçmeyen toplu alımlar (kadro listesinde lise olabilir, ilanı aç) |
 | Elenenler | Düzeyi lise olup puanı/yılı/yaşı tutmayanlar (yalnızca puan girdiysen dolar) |
 
+- **Yalnızca İstanbul:** profil `iller: ["İstanbul"]` ile sınırlıdır (`ayar.json` → `profiller` → `orta`). Başlığında İstanbul ya da
+  bir İstanbul ilçe belediyesi (Avcılar, Gaziosmanpaşa ...) ya da İBB/İETT/ISPARK/Marmara Üniversitesi gibi İstanbul kurumu
+  geçen ilanlar listelenir ve bildirilir; başka ilin ilanı (İzmir, Şanlıurfa ...) sayfada da bildirimde de **hiç çıkmaz**. Başlığı
+  hiçbir il söylemeyen ilanlar da (genelde ulusal alımlar; kapsamları belli değil) gizlenir ve bildirilmez. Onları görmek için
+  profile `"il_yok_goster": true` eklenir; sayfada ayrı bir *İl yazmıyor* sekmesi açılır (bildirim yine gelmez). İstanbul'un
+  bütün ilçe belediyeleri tanındığından, il anmayan belediye ilanı başka bir ilin sayılır. Başka il eklemek için `iller` listesine yazılır.
 - **Bildirim:** ortaöğretim KPSS puanıyla alım yapan **her yeni ilan** için gider; puana ve yaşa bakılmaz (profil anonim,
   sunucu puanını bilmez). "KPSS puanına göre" sekmesindeki ilanlar budur: ilanda KPSS geçmesi, P94 yazması ya da
   memur/4-B sözleşmeli kadrosu olması gerekir; KPSS'siz alımlar, lisans/ön lisans düzeyi (P3, P93 ...) ve işçi/İŞKUR kurası
