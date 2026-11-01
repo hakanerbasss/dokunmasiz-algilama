@@ -93,7 +93,10 @@ ILLER = ["Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Aksaray", "Amasya", 
 TAKMA_ADLAR = {"silivri": "İstanbul", "izmit": "Kocaeli", "gebze": "Kocaeli", "golcuk": "Kocaeli",
                "corlu": "Tekirdağ", "cerkezkoy": "Tekirdağ", "safranbolu": "Karabük",
                "amasra": "Bartın", "maras": "Kahramanmaraş", "urfa": "Şanlıurfa",
-               "afyon": "Afyonkarahisar", "icel": "Mersin"}
+               "afyon": "Afyonkarahisar", "icel": "Mersin",
+               # İstanbul kurumları (il adı geçmeyen başlıklar: "İBB 500 personel alacak", "Marmara Üniversitesi 63 personel")
+               "ibb": "İstanbul", "iett": "İstanbul", "ispark": "İstanbul", "marmara universitesi": "İstanbul",
+               "yildiz teknik": "İstanbul", "bogazici": "İstanbul", "mimar sinan": "İstanbul"}
 # "Avcılar Belediyesi", "Beylikdüzü Belediyesi" ... İstanbul'a sayılır (ilçe adı tek başına yanıltıcı olabilir:
 # "tuzla", "kartal", "fatih" sıradan sözcük/özel ad olabilir, bu yüzden yalnızca "<ilçe> belediye" kalıbında).
 ISTANBUL_ILCELERI = ["adalar", "arnavutkoy", "atasehir", "avcilar", "bagcilar", "bahcelievler", "bakirkoy",
@@ -392,6 +395,12 @@ def ayni_olay(a, b):
         return False
     uyum = guclu + bool(r1 and r1 == r2)
     return uyum >= 2 or (uyum == 1 and min(sum(map(bool, a)), sum(map(bool, b))) == 1)
+
+
+def orta_il_uygun(ilan, iller):
+    """Profil belirli illerle sınırlıysa (ör. ["İstanbul"]) ilan o illerden birini anmalı. Hiçbir il anmayan (ulusal)
+    ilanlar uygun sayılmaz: kapsamı belli değildir, bildirilmez; sayfada "İl yazmıyor" sekmesinde durur."""
+    return not iller or bool(set(ilan["gercekler"].get("iller") or []) & set(iller))
 
 
 def ortaogretim_ilgili(ilan):

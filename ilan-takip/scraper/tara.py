@@ -309,9 +309,9 @@ def bildir(konu, yeniler, ayar, sayfa_url, ilk):
                     oncelik=oncelik)             # başlıkta zaten emoji var; etiket eklenirse çift görünür
 
 
-def orta_bildirilebilir(ilan, simdi):
-    """Ortaöğretim KPSS ilanı mı (kişisel puan/yaş aranmaz: profil anonimdir) ve yeterince yeni mi?"""
-    if not analiz.orta_kpss_mi(ilan):
+def orta_bildirilebilir(ilan, simdi, iller=None):
+    """Ortaöğretim KPSS ilanı mı (kişisel puan/yaş aranmaz: profil anonimdir), profilin illerinden mi ve yeterince yeni mi?"""
+    if not analiz.orta_kpss_mi(ilan) or not analiz.orta_il_uygun(ilan, iller):
         return False
     if ilan["tarih"]:
         yas = simdi - dt.datetime.strptime(ilan["tarih"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
@@ -320,7 +320,7 @@ def orta_bildirilebilir(ilan, simdi):
     return True
 
 
-def orta_olaylari(ilanlar, yeni_idler=None, simdi=None):
+def orta_olaylari(ilanlar, yeni_idler=None, simdi=None, iller=None):
     """Bildirilecek ortaöğretim KPSS olayları (yeniden eskiye): her olaydan tek ilan.
 
     yeni_idler verilirse yalnızca bu çalıştırmada gelenler; ama aynı olayın daha önce kaydedilmiş (zaten bildirilmiş/özetlenmiş)
@@ -329,7 +329,7 @@ def orta_olaylari(ilanlar, yeni_idler=None, simdi=None):
                     and i.get("orta_kpss")}
     secilen, gorulen = [], set()
     for i in ilanlar:
-        if (yeni_idler is not None and i["id"] not in yeni_idler) or not orta_bildirilebilir(i, simdi or simdi_al()):
+        if (yeni_idler is not None and i["id"] not in yeni_idler) or not orta_bildirilebilir(i, simdi or simdi_al(), iller):
             continue
         olay = i.get("olay") or i["id"]
         if olay in eski_olaylar or olay in gorulen:
@@ -473,7 +473,7 @@ def calistir(kuru=False, sifirla=False):
     for i in ilanlar:       # sonradan eklenen gerçekler (genel puan, yaş riski): metni okunamayan ilanlarda başlıktan hesaplanır
         if i.get("metin_yok") or i["kaynak"].startswith("Google Haberler"):
             yeni_g = analiz.gercekler(i["baslik"], analiz.fold(i["baslik"]))
-            for k in ("genel_puanlar", "yas_riski"):
+            for k in ("genel_puanlar", "yas_riski", "iller"):
                 if yeni_g[k] and i["gercekler"].get(k) != yeni_g[k]:
                     i["gercekler"][k] = yeni_g[k]
                     tazelendi = True
@@ -502,6 +502,7 @@ def calistir(kuru=False, sifirla=False):
             i["metin_yok"] = True
     seviyeler = tuple(ayar.get("bildirim_seviyeleri", VARSAYILAN_BILDIRIM))
     bildirim_profili = ayar.get("bildirim_profili", "bio")
+    orta_iller = next((p.get("iller") for p in ayar.get("profiller", []) if p.get("egitim") == "ortaogretim"), None)
     # Sınıflama kuralları genişleyince (ayar.analiz_surumu): daha önce elenip kaydedilmemiş ilanlar yeniden değerlendirilir.
     # Kayıtlı ilanlar yinelenmez; yeniden değerlendirilenler bildirim göndermez.
     eski_gorulen = set()
@@ -566,7 +567,7 @@ def calistir(kuru=False, sifirla=False):
             continue
         if bildirilebilir(ilan, d["elendi_profil"], simdi, seviyeler, bildirim_profili):
             yeniler.append(ilan)
-        if orta_bildirilebilir(ilan, simdi):
+        if orta_bildirilebilir(ilan, simdi, orta_iller):
             orta_yeniler.append(ilan)
 
     # Ayrıntısı alınamamış resmî ilanları yeniden dene (API geçici olarak kapalı olabilir).
@@ -649,11 +650,11 @@ def calistir(kuru=False, sifirla=False):
     if konu_orta and not kuru and ayar.get("orta_bildirimi"):
         try:
             if durum.get("orta_basladi") != kisa_id(konu_orta):
-                bildir_orta(konu_orta, orta_olaylari(ilanlar, None, simdi), ayar, sayfa_url, baslangic=True)
+                bildir_orta(konu_orta, orta_olaylari(ilanlar, None, simdi, orta_iller), ayar, sayfa_url, baslangic=True)
                 durum["orta_basladi"] = kisa_id(konu_orta)       # konu değişirse özet yeniden gönderilir
                 yaz_json(VERI / "durum.json", durum)
             else:
-                bildir_orta(konu_orta, [i for i in orta_olaylari(ilanlar, {y["id"] for y in orta_yeniler}, simdi)
+                bildir_orta(konu_orta, [i for i in orta_olaylari(ilanlar, {y["id"] for y in orta_yeniler}, simdi, orta_iller)
                                         if konu_orta != konu or i not in yeniler], ayar, sayfa_url)
         except Exception as e:  # noqa: BLE001
             print(f"UYARI: ortaöğretim bildirimi gönderilemedi: {e}")

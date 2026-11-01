@@ -493,6 +493,44 @@ class OrtaogretimBildirimi(Taban):
         self.assertEqual(self.bildirimler, [])                               # özet bir kez gider
 
 
+class OrtaogretimIstanbul(Taban):
+    """Ortaöğretim profili yalnızca İstanbul ile sınırlıysa başka ilin (ya da il yazmayan) ilanı bildirilmez."""
+    def setUp(self):
+        super().setUp()
+        self.ayar({**AYAR, "orta_bildirimi": True, "analiz_surumu": 2,
+                   "profiller": [{"id": "orta", "ad": "Ortaöğretim", "isci_dahil": True, "egitim": "ortaogretim", "iller": ["İstanbul"]}],
+                   "kaynaklar": [{"ad": "Deneme RSS", "tur": "rss", "url": "https://haber.test/feed"}]})
+        self.sayfalar["https://haber.test/feed"] = rss(("Jaguar yeni model tanıttı", "https://haber.test/0", ""))
+        tara.calistir()
+        self.bildirimler.clear()
+
+    def test_yalniz_istanbul_bildirilir(self):
+        self.sayfalar["https://haber.test/feed"] = rss(
+            ("İzmir Büyükşehir Belediyesi 90 Zabıta Memuru Alacak: 65 KPSS ile Başvuru", "https://haber.test/izmir", ""),
+            ("Eyyübiye Belediyesi 9 Zabıta Memuru Alacak, KPSS 60", "https://haber.test/urfa", ""),
+            ("Sağlık Bakanlığı güvenlik görevlisi alımı: KPSS ile lise mezunu", "https://haber.test/ulusal", ""),
+            ("Gaziosmanpaşa Belediyesi 36 Zabıta Memuru Alacak! 65 KPSS ile", "https://haber.test/gop", ""))
+        tara.calistir()
+        self.assertEqual([b[1]["tikla"] for b in self.bildirimler], ["https://haber.test/gop"])
+        kayitlar = {i["url"]: i for i in self.ilanlar()["ilanlar"]}
+        self.assertTrue(kayitlar["https://haber.test/izmir"]["orta_kpss"])       # sayfada işaretli kalır (sayfa ili ayrıca süzer)
+
+    def test_acilis_ozeti_de_yalniz_istanbul(self):
+        durum_yolu = self.veri / "durum.json"
+        durum = json.loads(durum_yolu.read_text(encoding="utf-8"))
+        durum.pop("orta_basladi")
+        durum_yolu.write_text(json.dumps(durum), encoding="utf-8")
+        self.sayfalar["https://haber.test/feed"] = rss(
+            ("İzmir Büyükşehir Belediyesi 90 Zabıta Memuru Alacak: 65 KPSS ile Başvuru", "https://haber.test/izmir", ""),
+            ("İBB 40 Zabıta Memuru Alacak! 60 KPSS ile", "https://haber.test/ibb", ""))
+        tara.calistir()
+        orta = [b for b in self.bildirimler if "Ortaöğretim" in b[0][1]]
+        self.assertEqual(len(orta), 1)
+        self.assertIn("takibi başladı: 1 açık ilan", orta[0][0][1])
+        self.assertIn("İBB 40", orta[0][0][2])
+        self.assertNotIn("İzmir", orta[0][0][2])
+
+
 class YenidenTarama(Taban):
     """ayar.analiz_surumu artınca görülüp kaydedilmemiş ilanlar yeniden değerlendirilir; bildirim göndermez, yinelenmez."""
     def setUp(self):
